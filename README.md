@@ -44,7 +44,7 @@
 ├─ .eslintignore                   # 忽略 eslint 代码检测的配置文件
 ├─ .eslintrc.js                    # elsint 代码检测的配置文件
 ├─ index.html                      # html 入口文件
-├─ package.json                    # node 配置文件
+├─ package.json                    # 项目配置文件
 └─ README.md                       # 项目说明文档
 ```
 
@@ -56,7 +56,7 @@ CSS 预处理器是 CSS 的扩展语言，一般支持变量、嵌套、混合�
 
 ### Less 踩坑
 
-对于 Vue CLI 2，如果安装的 Less 版本太高，可能会报错，建议安装版本：`less@3.13.1` 和 `less-loader@5.0.0`
+对于 Vue CLI 2，如果安装的 Less 版本太高，可能会报错，建议安装版本：`less@3.0.4` 和 `less-loader@5.0.0`
 
 ### 全局样式
 
@@ -306,11 +306,11 @@ const http = axios.create({
 // 请求拦截
 http.interceptors.request.use(
   config => {
-    // 请求头携带Token（如果需要）
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = token
-    }
+    // 请求头携带Token
+    // const token = localStorage.getItem('token')
+    // if (token) {
+    //   config.headers.Authorization = token
+    // }
     return config
   },
   error => Promise.reject(error)
@@ -318,7 +318,7 @@ http.interceptors.request.use(
 
 // 响应拦截
 http.interceptors.response.use(
-  response => return Promise.resolve(response),
+  response => Promise.resolve(response),
   error => {
     // 请求错误统一处理
     if (error.response) {
@@ -619,7 +619,7 @@ Vue CLI 2 自带这个插件，运行编译命令 `npm run build --report`。
 
 4. Main
   
-`Main` 面板是一个火焰图，反应主线程的执行情况，是一个比较重要的部分。火焰图可以看出函数的执行时间，横向表示时间，纵向表示函数的调用栈，如果某个 `Task` 的耗时较长，右上角会标红，可以选中之后使用鼠标滚轮放大，最终定位到耗时比较多的函数，进行相应的优化。  
+`Main` 面板是一个火焰图，反应主线程的执行情况，是一个比较重要的部分。火焰图可以看出函数的执行时间，横向表示时间，纵向表示函数的调用栈，如果某个 `Task` 的耗时较长，右上角会标红，可以选中之后使用鼠标滚轮放大，最终定位到耗时比较多的函数，进行相应的优化。切换下方的面板，`Bottom-up`、`Call Tree` 和 `Event Log` 可以看到更多信息。
 
 ##### Coverage 和 Block Request URL 
 
@@ -800,6 +800,50 @@ for (let i = 0; i < book.length; i++) {
 }
 ```
 
+#### 尾调用（尾递归）优化
+
+尾调用相关参考：[《阮一峰 ES6 入门》](https://es6.ruanyifeng.com/#docs/function#%E5%B0%BE%E8%B0%83%E7%94%A8%E4%BC%98%E5%8C%96)
+
+递归函数中，函数内部调用自身，执行期间会一直将新的栈帧推入到函数调用栈中，从而可能导致“栈溢出”。
+
+以斐波那契数列为例，使用递归函数的实现：
+
+```js
+function Fibonacci(n) {
+  if (n <= 1) return 1
+  return Fibonacci(n - 1) + Fibonacci(n - 2)
+}
+
+console.log(Fibonacci(10)) // 89
+console.log(Fibonacci(100)) // 超时
+```
+
+这个递归函数的调用栈的帧数的空间复杂度是 O(2<sup>n</sup>)，当 n = 100 时，栈溢出。
+
+使用尾递归优化：
+
+```js
+function Fibonacci(n, a1 = 1, a2 = 1) {
+  if (n <= 1) return a2
+  return Fibonacci(n - 1, a2, a1 + a2)
+}
+```
+
+函数参数保存中间变量，并且在函数最后将结果 `return`。
+
+除了使用尾递归优化，还可以将递归函数改写成“循环”，优化性能：
+
+```js
+function Fibonacci(n) {
+  let a1 = 1, a2 = 1
+  for (let i = 2; i <= n; i++) {
+    // 解构赋值
+    [a1, a2] = [a2, a1 + a2]
+  }
+  return a2
+}
+```
+
 #### 定时器优化
 
 首先，应当避免定时器的滥用，比如在 `scroll` 事件中重复添加定时器。
@@ -887,6 +931,10 @@ export default {
 </script>
 ```
 
+#### 合理使用 LocalStorage 和 SessionStorage
+
+对于某些用户数据，例如网站偏好设置，历史记录等，需要用户获取到之前的数据，又没有必要请求服务器，则可以使用本地缓存。
+
 ### 感知性能优化
 
 #### 首屏优化
@@ -901,6 +949,7 @@ SPA 的首屏加载相对较慢，会出现一段时间的空白，影响用户�
 
 Vue CLI 2 默认的 Webpack 配置，已经实现了一些前端项目的性能优化，包括但不限于：
 
+- CSS 根据最低浏览器添加产商前缀
 - 打包 CSS 和 JS 等代码，减少文件个数，从而减少请求次数
 - 压缩代码，减少文件的大小
 - 分离比较稳定的第三方库代码，从而利用浏览器缓存，提高页面更新时的访问速度
