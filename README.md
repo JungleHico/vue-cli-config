@@ -8,6 +8,7 @@
 - [ESlint + Standard 统一代码规范](#eslint)
 - [UI 组件库规范](#ui)
 - [封装 axios 和 api](#axios)
+- [登录拦截](#login)
 - [Webpack](#webpack)
 - [Git 规范](#git)
 - [文档规范](#document)
@@ -33,6 +34,7 @@
   ├─ api                           # 接口
   ├─ assets                        # 图片等静态资源
   ├─ components                    # 公用组件
+  ├─ library                       # 第三方库（按需）引入
   ├─ router                        # 路由
   ├─ store                         # vuex 状态管理
   ├─ styles                        # 公用样式
@@ -212,7 +214,7 @@ UI 组件库的不做统一的要求，根据策划和设计的需求，以及�
 
 按需引入，建议在一个单独的文件中进行全局引入，方便扩展，同时避免 `main.js` 入口文件代码混乱，以 Ant Design Vue 为例：
 
-创建 `src/Antd/ant-design-vue.js`：
+创建 `src/library/Antd/ant-design-vue.js`：
 
 ```js
 import Vue from 'vue'
@@ -238,7 +240,7 @@ Vue.prototype.$message = Message
 
 即使只按需导入 `Button`， 使用 `webpack-bundle-analyzer` 打包分析工具（后面性能优化会讲到），会发现打包后的代码量仍然很大，这是因为 `Button` 组件中的 `icon` 属性默认将所有的图标引入，官方在 github 上提供的图标按需导入方法：
 
-1.创建 `src/Antd/icons.js`，用于图标按需导入：
+1.创建 `src/library/Antd/icons.js`，用于图标按需导入：
 
 ```js
 export {
@@ -261,13 +263,13 @@ export {
 module.exports = {
   resolve: {
     alias: {
-      '@ant-design/icons/lib/dist$': resolve('./src/Antd/icons.js')
+      '@ant-design/icons/lib/dist$': resolve('./src/library/Antd/icons.js')
     }
   }
 }
 ```
 
-定义 `icons` 的解析策略，当解析 `icons` 的资源路径时，从 `./src/Antd/icons.js` 中进行导入，这样就实现了图标的按需导入，减少了打包体积。
+定义 `icons` 的解析策略，当解析 `icons` 的资源路径时，从 `./src/library/Antd/icons.js` 中进行导入，这样就实现了图标的按需导入，减少了打包体积。
 
 ##### 排除 moment 语言包
 
@@ -440,6 +442,223 @@ const baseURL = {
 
 export default baseURL
 ```
+
+[▲ 回顶部](#top)
+
+## <span id="login">登录拦截</span>
+
+### 登录拦截实现原理
+
+1. 路由拦截，每次访问页面前，先检查本地是否有 token，如果没有，则跳转到登录页，执行第 2 步；如果有，执行第 3 步
+2. 用户使用账号密码登录后，获取 token，将 token 缓存到本地
+3. 所有（需要鉴权）的接口访问时，都要在请求头中携带 token
+4. 携带 token 请求数据（一般是用户基本信息），如果返回 401 未授权，说明 token 过期，需要跳转到登录页，执行第 2 步
+
+### 登录拦截实现过程
+
+1.Vuex 封装登录状态和登录/登出接口
+
+```js
+// src/store/login.js
+
+import { login, getLoginInfo } from '@/api/login'
+
+const login = {
+  state: {
+    loginInfo: null
+  },
+  mutations: {
+    SET_LOGIN_INFO (state, loginInfo) {
+      state.loginInfo = loginInfo
+    },
+  },
+  actions: {
+    // 封装登录接口
+    async Login ({ commit }, account) {
+      try {
+        const res = await login(account)
+        const token = res?.data?.data?.token
+        if (token) {
+          // 缓存token
+          localStorage.setItem('token', token)
+        }
+        return res
+      } catch (error) {
+        return Promise.reject(error)
+      }
+    },
+    // 获取用户基本信息（判断token是否过期）
+    async GetLoginInfo ({ commit }) {
+      try {
+        const res = await getLoginInfo()
+        const loginInfo = res?.data?.data
+        if (loginInfo) {
+          commit('SET_LOGIN_INFO', loginInfo)
+        }
+        return res
+      } catch (error) {
+        return Promise.reject(error)
+      }
+    },
+    // 退出登录
+    Logout ({ commit }) {
+      // 移除token
+      localStorage.removeItem('token')
+      commit('SET_LOGIN_INFO', null)
+    }
+  }
+}
+
+export default login
+```
+
+2.请求拦截和响应拦截（参考 [封装 axios 和 api](#axios)）
+
+```js
+// src/api/utils/http
+
+// ...
+
+// 请求拦截
+http.interceptors.request.use(
+  config => {
+    // 请求头携带Token
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers.Authorization = 'Bearer ' + token
+    }
+    return config
+  },
+  error => Promise.reject(error)
+)
+
+// 响应拦截
+http.interceptors.response.use(
+  response => Promise.resolve(response),
+  error => {
+    if (error.response) {
+      switch (error.response.status) {
+        case 401:
+          console.log('登录过期，请重新登录')
+          // TODO 登录过期提示
+          // 重新加载当前页（结合路由守卫，可以重定向到登录页）
+          window.location.reload()
+          break
+        // ...
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
+export default http
+```
+
+3.路由守卫，登录拦截
+
+```js
+// src/router/index.js
+
+import Vue from 'vue'
+import VueRouter from 'vue-router'
+import store from '../store/index'
+// ...
+
+const routes = [
+  // ...
+]
+
+const router = new VueRouter({
+  routes
+})
+
+// 路由守卫，登录拦截
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    if (store?.state?.user?.loginInfo) {
+      // vuex可以获取到登录状态，说明token有效
+      next()
+    } else {
+      // 刷新页面，或者关闭页面后重新打开，vuex失效，则重新获取
+      store.dispatch('GetLoginInfo')
+        .then(res => {
+          // 可以获取到登录状态，说明token仍然有效
+          next()
+        })
+        .catch(error => {
+          // 获取失败，重新登录
+          store.dispatch('Logout').then(() => {
+            next('/login')
+          })
+        }
+    }
+  } else {
+    // 没有token（未登录/已经退出登录），跳转到登录页
+    // 如果当前要跳转的页面不是登录页，则跳转到登录页（避免死循环）
+    if (to.path === '/login') {
+      next()
+    } else {
+      next('/login')
+    }
+  }
+})
+
+export default router
+```
+
+4.页面中实现登录和登出
+
+```js
+// Login.vue
+
+<script>
+import { mapActions } from 'vuex'
+
+export default {
+  // ...
+
+  methods: {
+    ...mapActions(['Login']),
+    async onLogin () {
+      // TODO 表单校验
+      try {
+        await this.Login({
+          // 账号密码
+          // ...
+        })
+        // 登录成功，跳转到首页
+        this.$router.push('/')
+      } catch (error) {
+        // TODO 错误提示
+      }
+    }
+  }
+}
+</script>
+```
+
+```js
+// LogoutButton.vue
+
+<script>
+import { mapActions } from 'vuex'
+
+export default {
+  // ...
+
+  methods: {
+    ...mapActions(['Logout']),
+    onLogout () {
+      // TODO 退出确认框
+      this.Logout()
+    }
+  }
+}
+</script>
+```
+
+> `Vuex` 参考 [Vuex 官方文档](https://vuex.vuejs.org/zh/)，路由守卫参考 [Vue Router 官方文档](https://router.vuejs.org/zh/guide/advanced/navigation-guards.html#%E5%85%A8%E5%B1%80%E5%89%8D%E7%BD%AE%E5%AE%88%E5%8D%AB)，`async/await` 语法参考 [《ES6入门教程——阮一峰》](https://es6.ruanyifeng.com/)
 
 [▲ 回顶部](#top)
 
