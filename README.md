@@ -9,6 +9,7 @@
 - [UI 组件库规范](#ui)
 - [封装 axios 和 api](#axios)
 - [登录拦截](#login)
+- [权限控制](#authorization)
 - [Webpack](#webpack)
 - [Git 规范](#git)
 - [文档规范](#document)
@@ -477,8 +478,8 @@ const login = {
     async Login ({ commit }, account) {
       try {
         const res = await login(account)
-        const token = res?.data?.data?.token
-        if (token) {
+        if (res.data.data && res.data.data.token) {
+          const token = res.data.data.data.token
           // 缓存token
           localStorage.setItem('token', token)
         }
@@ -491,7 +492,7 @@ const login = {
     async GetLoginInfo ({ commit }) {
       try {
         const res = await getLoginInfo()
-        const loginInfo = res?.data?.data
+        const loginInfo = res.data.data
         if (loginInfo) {
           commit('SET_LOGIN_INFO', loginInfo)
         }
@@ -564,6 +565,15 @@ import VueRouter from 'vue-router'
 import store from '../store/index'
 // ...
 
+// hack router push callback（避免某些版本的vue-router跳转到相同页面报错）
+const originalPush = Router.prototype.push
+Router.prototype.push = function push (location, onResolve, onReject) {
+  if (onResolve || onReject) {
+    return originalPush.call(this, location, onResolve, onReject)
+  }
+  return originalPush.call(this, location).catch(err => err)
+}
+
 const routes = [
   // ...
 ]
@@ -576,7 +586,7 @@ const router = new VueRouter({
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   if (token) {
-    if (store?.state?.user?.loginInfo) {
+    if (store.state.user.loginInfo) {
       // vuex可以获取到登录状态，说明token有效
       next()
     } else {
@@ -659,6 +669,284 @@ export default {
 ```
 
 > `Vuex` 参考 [Vuex 官方文档](https://vuex.vuejs.org/zh/)，路由守卫参考 [Vue Router 官方文档](https://router.vuejs.org/zh/guide/advanced/navigation-guards.html#%E5%85%A8%E5%B1%80%E5%89%8D%E7%BD%AE%E5%AE%88%E5%8D%AB)，`async/await` 语法参考 [《ES6入门教程——阮一峰》](https://es6.ruanyifeng.com/)
+
+[▲ 回顶部](#top)
+
+## <span id="authorization">权限控制</span>
+
+如果系统中存在多个角色，例如超级管理员和普通管理员，则不同角色对资源的访问应该进行权限控制。
+
+### 路由权限及侧边栏
+
+#### 路由权限
+
+路由权限，即对角色允许访问的页面进行控制，如果角色没有权限访问当前页面，应当跳转到 404 页面。
+
+##### 路由权限的实现思路
+
+1. 后端应该提供 `role(Array)` 字段，前端登录后可以获取到用户所属角色；
+2. 前端实现基本/通用路由表，这个路由表是静态的，包含不需要登录就可以访问的公共页面，例如：登录页、404 页面等；
+3. 准备需要根据权限动态加载的路由表，这个路由表可以是前端定义，也可以是后台创建，路由表内指定允许访问的角色列表；
+4. 用户登录后，根据 `role` 比对动态路由表，筛选出可以访问的动态路由表，合并通用路由表，最终生成用户可以访问的路由表。
+
+##### 路由权限的具体实现
+
+1.创建通用路由表
+
+```js
+// src/router/index.js
+
+import Vue from 'vue'
+import Router from 'vue-router'
+// ...
+
+Vue.use(Router)
+
+// 通用路由表
+export const constantRouterMap = [
+  {
+    path: '/login',
+    name: "login",
+    component: Login
+  },
+  {
+    path: '/',
+    component: BasicLayout,
+    redirect: '/index'
+  },
+  {
+    path: '/404',
+    name: '404',
+    component: () => import('@/views/404')
+  }
+]
+
+const router = new Router({
+  routes: constantRouterMap
+})
+
+export default router
+```
+
+2.创建动态路由表
+
+前端：
+
+```js
+// src/router/index.js
+
+export const asyncRouterMap = [
+  {
+    path: '/',
+    component: BasicLayout,
+    meta: { title: '首页' },
+    children: [
+      {
+        path: '/index',
+        component: () => import('@/views/Index'),
+        meta: { title: '欢迎页' }
+      },
+      {
+        path: '/user',
+        component: RouteView,
+        redirect: '/user/list',
+        meta: { title: '用户管理', role: ['operator'] },
+        children: [
+          {
+            path: '/user/list',
+            component: () => import('@/views/User/List'),
+            meta: { title: '用户列表', role: ['operator'] }
+          },
+          {
+            path: '/user/login',
+            component: () => import('@/views/User/Login'),
+            meta: { title: '登录记录', role: ['operator'] }
+          }
+        ]
+      },
+      {
+        path: '/system',
+        component: RouteView,
+        redirect: '/system/account',
+        meta: { title: '系统管理', role: ['admin'] },
+        children: [
+          {
+            path: '/system/account',
+            component: () => import('@/views/System/Account'),
+            meta: { title: '账号管理', role: ['admin'] }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    path: '*',
+    redirect: '/404'
+  }
+]
+```
+
+上面的例子包含两种角色：普通运营（operator）和超级管理员（admin），通过 `meta.role` 指定允许访问的角色，不指定时所有角色都可以访问。
+
+最后需要匹配其他（未匹配到的）路由，重定向到 404 页面。
+
+有些时候，路由表不像上面的例子在前端配置，而是需要在后台动态配置页面/菜单信息：
+
+![权限控制-动态路由](./docs/images/authority_routes.png)
+
+3.`Vuex` 管理路由权限
+
+```js
+// src/store/permission.js
+
+import { constantRouterMap, asyncRouterMap } from '@/router/index'
+
+// 判断用户是否拥有当前页面的权限
+function hasPermission(route, roles) {
+  if (route.meta && route.meta.role) {
+    return roles.some(role => route.meta.role.includes(role))
+  }
+  return true
+}
+
+// 根据权限过滤，获取动态路由表
+function filterAsyncRouters(routerMap, roles) {
+  let accessedRouters = routerMap.filter(route => {
+    // 超级管理员，返回全部路由
+    if (roles.includes('admin')) {
+      return true
+    }
+    // 用户有权限
+    if (hasPermission(route, roles)) {
+      // 处理子路由
+      if (route.children && route.children.length) {
+        route.children = filterAsyncRouters(route.children, roles)
+      }
+      return true
+    }
+    return false
+  });
+  return accessedRouters
+}
+
+const permission = {
+  state: {
+    routers: constantRouterMap,
+    addRouters: []
+  },
+  mutations: {
+    SET_ROUTERS(state, routers) {
+      state.addRouters = routers
+      state.routers = constantRouterMap.concat(routers)
+    }
+  },
+  actions: {
+    GenerateRoutes( { commit }, roles) {
+      return new Promise(resolve => {
+        // 根据role权限做筛选
+        const accessedRouters = filterAsyncRouters(asyncRouterMap, roles)
+        commit('SET_ROUTERS', accessedRouters)
+        // TODO Vuex user中应该管理roles(Array)状态，此处略
+        commit('SET_USER_ROLES', roles)
+        resolve()
+      })
+    }
+  }
+}
+
+export default permission
+```
+`GenerateRoutes(roles [])` 函数，根据用户的角色，最终筛选出允许访问的路由表。 
+
+4.路由守卫
+
+路由权限控制需要基于登录功能，参考上文 [登录拦截](#login)。
+
+```js
+// src/router/index.js
+
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    // 有token
+    if (to.path === '/login') {
+      next('')
+    } else {
+      // Vuex中无用户role，即无路由表，则重新获取角色和路由表（登录或者手动刷新页面时无路由）
+      if (!store.state.user.role.length) {
+        store.dispatch('GetLoginInfo').then(res => {
+          const roles = res.data.roles
+          // 动态分发路由
+          store.dispatch('GenerateRoutes', roles)
+          .then(() => {
+            router.addRoutes(store.state.permission.routers)
+            // hack方法，确保addRoutes已完成
+            next({ ...to, replace: true })
+          })
+        })
+      } else {
+        next()
+      }
+    }
+  } else {
+    // 无token，返回登录页
+    if (to.path === '/login') {
+      next()
+    } else {
+      next('/login')
+    }
+  }
+})
+
+export default router
+```
+
+> Vue2.2.0 以后，可以通过 `router.addRoutes` 动态添加路由
+
+#### 侧边栏
+
+侧边栏基于路由权限，只有用户有权访问的页面，才会在侧边栏的菜单中出现。一般的做法是基于组件库的侧边栏/菜单组件，使用递归组件，根据路由表进行渲染。参考 [Ant-Design-Vue-导航菜单-单文件递归菜单](https://www.antdv.com/components/menu-cn/#components-menu-demo-single-file-recursive-menu)。
+
+侧边栏一般不会显示整个路由表，而是选取 `path` 为 `'/'` 的路由的 `children`。如果不希望某个特定的路由出现在侧边栏中，可以添加 `meta.hide` 字段，渲染菜单的时候根据需要隐藏。
+
+```js
+let menus = routes.find(route => route.path === '/')
+menus = (menus && menus.children) || [] 
+```
+
+侧边栏除了点击菜单显示对应页面，还应该实现：根据路由展开/高亮对应的菜单。做法是在侧边栏组件 `mounted` 生命周期触发时，以及监听（`watch`）路由变化时，比对当前路由和侧边栏，展开/高亮对应菜单。
+
+### 接口/请求/资源权限
+
+接口权限属于后端的范围，一般如果用户没有访问对应接口（资源）的权限，应当返回 403 状态码。有时候，系统的角色不是固定的，需要动态创建角色，因此就需要为角色动态分配权限。
+
+系统为角色分配请求权限，应当实现以下功能模块：菜单管理（参考路由权限中从后台配置路由）、资源/请求管理（在对应模块/菜单中创建和管理不同的接口）和角色管理（创建角色和分配权限）
+
+- 菜单管理：
+
+![权限控制-菜单管理](./docs/images/authority_menu.png)
+
+- 请求管理：
+
+![权限控制-请求管理](./docs/images/authority_request.png)
+
+- 角色管理：
+
+![权限控制-角色管理](./docs/images/authority_role.png)
+
+### 动作权限
+
+有时候，系统可能需要进行精细的动作权限控制，例如，某个用户是否有权限看到/点击某个按钮。
+
+最简单的做法是，任何用户都可以看到该按钮，当用户点击按钮时，通过接口权限去控制，如果返回 403，则提示用户没有对应的权限。
+
+另一种做法是，前端根据用户的 `role`，通过 `v-if` 或者自定义指令控制按钮的显示。
+
+有时候，像上文接口权限中的情况一样，系统角色不固定，则需要动态配置角色的动作权限，参考上文接口权限的实现。
+
+![权限控制-动作管理](./docs/images/authority_action.png)
+
+> 注意：同一个页面中出现过多的动作权限控制是不合理的，这时候应该考虑使用路由控制。
 
 [▲ 回顶部](#top)
 
