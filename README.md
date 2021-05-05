@@ -7,6 +7,7 @@
 - [CSS 预处理器以及全局样式](#less)
 - [ESlint + Standard 统一代码规范](#eslint)
 - [UI 组件库规范](#ui)
+- [ES6 兼容 IE](#es6)
 - [封装 axios 和 api](#axios)
 - [登录拦截](#login)
 - [权限控制](#authorization)
@@ -215,7 +216,7 @@ UI 组件库的不做统一的要求，根据策划和设计的需求，以及�
 
 按需引入，建议在一个单独的文件中进行全局引入，方便扩展，同时避免 `main.js` 入口文件代码混乱，以 Ant Design Vue 为例：
 
-创建 `src/library/Antd/ant-design-vue.js`：
+创建 `src/library/ant-design-vue.js`：
 
 ```js
 import Vue from 'vue'
@@ -288,6 +289,30 @@ module.exports = {
 
 [▲ 回顶部](#top)
 
+## <span id="es6">ES6 兼容 IE</span>
+
+ES6 可以分为新语法和新的 API，`let`、`const`、箭头函数，解构赋值等都属于新语法，新增的对象或者新增的方法属于新的 API，例如 `Promise` 对象，`Array.includes()` 方法。`Babel` 默认只会转换新语法，不会转换新的 API，Vue-CLI2 中使用 Webacpk3，新的 API 需要通过引入 `babel-polyfill` 来兼容环境。
+
+首先，安装 `babel-polyfill`：
+
+```sh
+npm install --save babel-polyfill
+```
+
+然后，修改 Webpack 的入口配置：
+
+```js
+// build/webpack.base.conf.js
+
+module.exports = {
+  // entry: {
+  //   app: './src/main.js'
+  // },
+  // ES6 兼容 IE
+  entry: ['babel-polyfill', './src/main.js'],
+}
+```
+
 ## <span id="axios">封装 axios 和 api</span>
 
 Vue 项目一般采用 [axios](http://www.axios-js.com/zh-cn/docs/) 进行接口请求。封装 axios 的好处：对 axios 进行统一配置，有利于项目的迭代和维护。
@@ -295,6 +320,8 @@ Vue 项目一般采用 [axios](http://www.axios-js.com/zh-cn/docs/) 进行接口
 ### 封装 axios
 
 #### 基本配置
+
+`axios` 的使用参考 [axios 中文文档](http://www.axios-js.com/zh-cn/docs/)。
 
 创建 `src/api/utils/http.js`，对 axios 进行封装：
 
@@ -326,6 +353,7 @@ http.interceptors.response.use(
     // 请求错误统一处理
     if (error.response) {
       switch (error.response.status) {
+        // TODO Notification 组件提示
         case 401:
           console.log('登录过期，请重新登录')
           break
@@ -363,7 +391,7 @@ const http = axios.create({
 })
 
 // ...
-export function get (url, params = {}, config = {}) {
+export const get = (url, params = {}, config = {}) => {
   return http({
     url,
     method: 'GET',
@@ -372,7 +400,7 @@ export function get (url, params = {}, config = {}) {
   })
 }
 
-export function post (url, data = {}, config = {}) {
+export const post = (url, data = {}, config = {}) => {
   return http({
     url,
     method: 'POST',
@@ -422,9 +450,9 @@ if (process.env.NODE_ENV === 'development') {
 // user.js
 import { get, post } from './utils/http'
 
-export const login = params => post('/user/login', params)
+export const login = data => post('/user/login', data)
 
-export const getUserInfo = data => get('/user/info', data)
+export const getLoginInfo = () => get('/user/info')
 ```
 
 如果一个模块可以划分为更小的功能单元，则可以创建文件夹和多个文件，文件夹表示主模块，文件表示子模块。
@@ -435,13 +463,14 @@ export const getUserInfo = data => get('/user/info', data)
 
 ```js
 const baseURL = {
-  dev: 'http://xxx:8080',
-  prod: 'http://xxx',
-  course: 'http://xxx',
-  user: 'http://xxx'
+  devAPI: 'http://xxx/dev/api',
+  prodAPI: 'http://xxx/production/api',
+  courseAPI: 'http://xxx/course/api',
+  userAPI: 'http://xxx/user/api'
 }
 
 export default baseURL
+
 ```
 
 [▲ 回顶部](#top)
@@ -460,9 +489,9 @@ export default baseURL
 1.Vuex 封装登录状态和登录/登出接口
 
 ```js
-// src/store/login.js
+// src/store/user.js
 
-import { login, getLoginInfo } from '@/api/login'
+import { login, getLoginInfo } from '@/api/user'
 
 const login = {
   state: {
@@ -471,7 +500,7 @@ const login = {
   mutations: {
     SET_LOGIN_INFO (state, loginInfo) {
       state.loginInfo = loginInfo
-    },
+    }
   },
   actions: {
     // 封装登录接口
@@ -481,7 +510,7 @@ const login = {
         if (res.data.data && res.data.data.token) {
           const token = res.data.data.data.token
           // 缓存token
-          localStorage.setItem('token', token)
+          localStorage.setItem('token', `Bearer ${token}`)
         }
         return res
       } catch (error) {
@@ -502,7 +531,8 @@ const login = {
       }
     },
     // 退出登录
-    Logout ({ commit }) {
+    async Logout ({ commit }) {
+      // TODO 退出登录接口
       // 移除token
       localStorage.removeItem('token')
       commit('SET_LOGIN_INFO', null)
@@ -526,7 +556,7 @@ http.interceptors.request.use(
     // 请求头携带Token
     const token = localStorage.getItem('token')
     if (token) {
-      config.headers.Authorization = 'Bearer ' + token
+      config.headers.Authorization = token
     }
     return config
   },
@@ -566,8 +596,8 @@ import store from '../store/index'
 // ...
 
 // hack router push callback（避免某些版本的vue-router跳转到相同页面报错）
-const originalPush = Router.prototype.push
-Router.prototype.push = function push (location, onResolve, onReject) {
+const originalPush = VueRouter.prototype.push
+VueRouter.prototype.push = function push (location, onResolve, onReject) {
   if (onResolve || onReject) {
     return originalPush.call(this, location, onResolve, onReject)
   }
@@ -590,18 +620,19 @@ router.beforeEach((to, from, next) => {
       // vuex可以获取到登录状态，说明token有效
       next()
     } else {
-      // 刷新页面，或者关闭页面后重新打开，vuex失效，则重新获取
+      // 刷新页面，或者关闭页面后重新打开，vuex 失效，则重新获取
       store.dispatch('GetLoginInfo')
         .then(res => {
-          // 可以获取到登录状态，说明token仍然有效
+        // 可以获取到登录状态，说明 token 仍然有效
           next()
         })
         .catch(error => {
-          // 获取失败，重新登录
+        // 获取失败，重新登录
+          console.log(error)
           store.dispatch('Logout').then(() => {
             next('/login')
           })
-        }
+        })
     }
   } else {
     // 没有token（未登录/已经退出登录），跳转到登录页
@@ -637,7 +668,7 @@ export default {
           // 账号密码
           // ...
         })
-        // 登录成功，跳转到首页
+        // 登录成功，重定向到首页
         this.$router.push('/')
       } catch (error) {
         // TODO 错误提示
@@ -661,7 +692,9 @@ export default {
     ...mapActions(['Logout']),
     onLogout () {
       // TODO 退出确认框
-      this.Logout()
+      this.Logout().then(() => {
+        this.$router.push('/login')
+      })
     }
   }
 }
@@ -686,7 +719,7 @@ export default {
 
 1. 后端应该提供 `role(Array)` 字段，前端登录后可以获取到用户所属角色；
 2. 前端实现基本/通用路由表，这个路由表是静态的，包含不需要登录就可以访问的公共页面，例如：登录页、404 页面等；
-3. 准备需要根据权限动态加载的路由表，这个路由表可以是前端定义，也可以是后台创建，路由表内指定允许访问的角色列表；
+3. 准备需要根据权限动态加载的路由表，这个路由表可以是前端定义，也可以是后台创建，前端定义的路由表内指定允许访问的角色列表；
 4. 用户登录后，根据 `role` 比对动态路由表，筛选出可以访问的动态路由表，合并通用路由表，最终生成用户可以访问的路由表。
 
 ##### 路由权限的具体实现
@@ -788,7 +821,7 @@ export const asyncRouterMap = [
 
 上面的例子包含两种角色：普通运营（operator）和超级管理员（admin），通过 `meta.role` 指定允许访问的角色，不指定时所有角色都可以访问。
 
-最后需要匹配其他（未匹配到的）路由，重定向到 404 页面。
+最后其他未匹配到的路由，需要重定向到 404 页面。
 
 有些时候，路由表不像上面的例子在前端配置，而是需要在后台动态配置页面/菜单信息：
 
@@ -954,19 +987,20 @@ menus = (menus && menus.children) || []
 
 Webpack 是一个现代 JavaScript 应用程序的静态模块打包器，是前端工程化必备的内容。
 
-[Webpack3 中文文档](https://webpack.docschina.org/concepts/)
+[Webpack 中文文档](https://webpack.docschina.org/concepts/)
 
-[Webpack4 中文文档](https://v4.webpack.docschina.org/concepts/)
-
-[Webpack5 英文文档](https://webpack.js.org/concepts/)
+[Webpack 英文文档](https://webpack.js.org/concepts/)
 
 参考 Webpack 文档的指南（guides），可以快速上手。
+
+> 注意：Vue-CLI2 默认使用的是 Webpack3，部分配置可能与新版的 Webpack 不一样。
 
 ### 开发环境和生产环境
 
 开发环境（development）和生产环境（production）的构建目标差异很大。在开发环境中，我们需要具有强大的、具有实时重新加载（live reloading）或热模块替换（hot module replacement）能力的 source map 和 localhost server。而在生产环境中，我们的目标则转向于关注更小的 bundle，更轻量的 source map，以及更优化的资源，以改善加载时间。由于要遵循逻辑分离，我们通常建议为每个环境编写彼此独立的 webpack 配置。
 
 Vue CLI 2 项目中，`build/` 文件夹包含了基本的 Webpack 配置，其中，`webpack.base.conf.js` 是通用的环境配置，`webpack.dev.conf.js` 是开发环境配置，`webpack.prod.conf.js` 是生产环境配置。Vue CLI 2 默认已经配置了很多 Webpack 的内容，只需要根据项目需要修改即可。
+
 
 [▲ 回顶部](#top)
 
