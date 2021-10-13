@@ -835,7 +835,7 @@ export const asyncRouterMap = [
 import { constantRouterMap, asyncRouterMap } from '@/router/index'
 
 // 判断用户是否拥有当前页面的权限
-function hasPermission(route, roles) {
+function hasPermission (route, roles) {
   if (route.meta && route.meta.role) {
     return roles.some(role => route.meta.role.includes(role))
   }
@@ -843,7 +843,7 @@ function hasPermission(route, roles) {
 }
 
 // 根据权限过滤，获取动态路由表
-function filterAsyncRouters(routerMap, roles) {
+function filterAsyncRouters (routerMap, roles) {
   let accessedRouters = routerMap.filter(route => {
     // 超级管理员，返回全部路由
     if (roles.includes('admin')) {
@@ -858,7 +858,7 @@ function filterAsyncRouters(routerMap, roles) {
       return true
     }
     return false
-  });
+  })
   return accessedRouters
 }
 
@@ -868,13 +868,13 @@ const permission = {
     addRouters: []
   },
   mutations: {
-    SET_ROUTERS(state, routers) {
+    SET_ROUTERS (state, routers) {
       state.addRouters = routers
       state.routers = constantRouterMap.concat(routers)
     }
   },
   actions: {
-    GenerateRoutes( { commit }, roles) {
+    GenerateRoutes ({ commit }, roles) {
       return new Promise(resolve => {
         // 根据role权限做筛选
         const accessedRouters = filterAsyncRouters(asyncRouterMap, roles)
@@ -886,8 +886,6 @@ const permission = {
     }
   }
 }
-
-export default permission
 ```
 `GenerateRoutes(roles [])` 函数，根据用户的角色，最终筛选出允许访问的路由表。 
 

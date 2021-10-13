@@ -2,6 +2,7 @@ import Vue from 'vue'
 import Router from 'vue-router'
 import store from '../store/index'
 import BasicLayout from '../layouts/BasicLayout'
+import RouteView from '../layouts/RouteView'
 
 Vue.use(Router)
 
@@ -14,7 +15,8 @@ Router.prototype.push = function push (location, onResolve, onReject) {
   return originalPush.call(this, location).catch(err => err)
 }
 
-const routes = [
+// 通用路由表
+export const constantRouterMap = [
   {
     path: '/',
     component: BasicLayout,
@@ -33,16 +35,70 @@ const routes = [
   {
     path: '/404',
     component: () => import('@/views/404')
+  }
+]
+
+export const asyncRouterMap = [
+  {
+    path: '/',
+    component: BasicLayout,
+    redirect: '/home',
+    children: [
+      {
+        path: '/home',
+        component: () => import('../views/Home'),
+        meta: { title: '首页' }
+      },
+      {
+        path: '/demo',
+        component: RouteView,
+        meta: { title: 'Demo' },
+        children: [
+          {
+            path: '/demo/list',
+            component: () => import('../views/demo/List'),
+            meta: { title: '列表' }
+          },
+          {
+            path: '/demo/table',
+            component: () => import('../views/demo/Table'),
+            meta: { title: '表格' }
+          }
+        ]
+      },
+      {
+        path: '/system',
+        component: RouteView,
+        meta: { title: '系统管理' },
+        children: [
+          {
+            path: '/system/menu',
+            component: () => import('../views/system/Menu'),
+            meta: { title: '菜单管理' }
+          },
+          {
+            path: '/system/api',
+            component: () => import('../views/system/Api'),
+            meta: { title: '接口管理' }
+          },
+          {
+            path: '/system/role',
+            component: () => import('../views/system/Role'),
+            meta: { title: '角色管理' }
+          }
+        ]
+      }
+    ]
   },
   {
-    path: '/*',
+    path: '*',
     redirect: '/404'
   }
 ]
 
 const router = new Router({
   mode: 'history',
-  routes
+  routes: constantRouterMap
 })
 
 // 路由守卫，登录拦截

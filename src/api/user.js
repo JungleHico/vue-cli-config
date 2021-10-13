@@ -15,7 +15,7 @@ export const login = async (data) => {
           resolve({
             data: {
               data: {
-                token: 'asdjlk'
+                token: 'abcdef'
               }
             }
           })

@@ -1,6 +1,7 @@
 <template>
   <div class="login">
     <img class="logo" src="@/assets/images/logo.png" />
+    <h1 class="title">后台管理系统</h1>
 
     <a-form class="form" :form="form" @submit="onSubmit">
       <a-alert
@@ -97,7 +98,12 @@ export default {
   .logo {
     width: 256px;
     height: auto;
-    margin: 32px 0;
+    margin-top: 32px;
+  }
+  .title {
+    margin: 16px 0 32px;
+    font-size: 24px;
+    font-weight: 700;
   }
   .form {
     width: 360px;

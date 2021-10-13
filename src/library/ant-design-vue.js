@@ -4,6 +4,7 @@ import {
   Alert,
   Button,
   Form,
+  Layout,
   Input,
   Notification
 } from 'ant-design-vue'
@@ -11,6 +12,7 @@ import {
 Vue.use(Alert)
 Vue.use(Button)
 Vue.use(Form)
+Vue.use(Layout)
 Vue.use(Input)
 
 Vue.prototype.$notification = Notification
