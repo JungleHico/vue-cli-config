@@ -16,6 +16,7 @@
 - [文档规范](#document)
 - [性能优化](#performance)
 
+
 ## <span id="install">Vue CLI 2 安装</span>
 
 参考 [github 文档](https://github.com/vuejs/vue-cli/tree/v2)
