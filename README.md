@@ -2,65 +2,64 @@
 
 ## <span id="top">目录</span>
 
-- [Vue CLI 2 安装](#install)
+- [Vue CLI4 安装](#install)
 - [目录结构规范](#catalogue)
 - [CSS 预处理器以及全局样式](#less)
 - [ESlint + Standard 统一代码规范](#eslint)
 - [UI 组件库规范](#ui)
-- [ES6 兼容 IE](#es6)
 - [封装 axios 和 api](#axios)
 - [登录拦截](#login)
 - [权限控制](#authorization)
-- [Webpack](#webpack)
 - [Git 规范](#git)
 - [文档规范](#document)
 - [性能优化](#performance)
 
-## <span id="install">Vue CLI 2 安装</span>
+## <span id="install">Vue CLI4 安装</span>
 
-参考 [github 文档](https://github.com/vuejs/vue-cli/tree/v2)
+参考 [Vue CLI 官方文档](https://cli.vuejs.org/zh/guide/)
 
 初始化项目配置参考：
 
-![初始化配置](./docs/images/vue-cli.png)
+![初始化配置](./docs/images/vue-cli4.png)
 
 [▲ 回顶部](#top)
+
 
 ## <span id="catalogue">目录结构规范</span>
 
 ```sh
-├─ build                           # webpack 基本配置
-├─ config                          # 开发环境和生产环境部分构建配置
 ├─ node_modules                    # node 依赖包
+├─ public                          # 不被 webpack 处理（保留）的静态资源
+  └─ index.html                    # html 入口文件
 ├─ src                             # 业务代码
   ├─ api                           # 接口
   ├─ assets                        # 图片等静态资源
   ├─ components                    # 公用组件
-  ├─ library                       # 第三方库（按需）引入
+  ├─ plugins                       # 第三方库/插件（按需）引入
   ├─ router                        # 路由
   ├─ store                         # vuex 状态管理
   ├─ styles                        # 公用样式
   ├─ views                         # 页面
   ├─ App.vue                       # 根组件
   └─ main.js                       # 入口脚本文件
-├─ static                          # 不被 webpack 处理（保留）的静态资源
-├─ .babelrc                        # babel 配置文件
-├─ .eslintignore                   # 忽略 eslint 代码检测的配置文件
+├─ .browserslistrc                 # 构建目标浏览器，用于处理浏览器兼容
 ├─ .eslintrc.js                    # elsint 代码检测的配置文件
-├─ index.html                      # html 入口文件
+├─ .babel.config.js                # babel 配置文件
 ├─ package.json                    # 项目配置文件
-└─ README.md                       # 项目说明文档
+├─ README.md                       # 项目说明文档
+└─ vue.config.js                   # webpack 配置文件
 ```
 
 [▲ 回顶部](#top)
 
+
 ## <span id="less">CSS 预处理器以及全局样式</span>
 
-CSS 预处理器是 CSS 的扩展语言，一般支持变量、嵌套、混合等编程语言的特性，使用 CSS 预处理器可以减少 CSS 冗余代码，提高编写 CSS 的效率。比较推荐的 CSS 预处理器是 [SCSS](https://www.sass.hk/guide/) 和 [Less](https://less.bootcss.com/)，这两者本质上没有太大的区别，只是语法层面的不同。
+CSS 预处理器是 CSS 的扩展语言，一般支持变量、嵌套、混合等编程语言的特性，使用 CSS 预处理器可以减少 CSS 冗余代码，提高编写 CSS 的效率。比较推荐的 CSS 预处理器是 [Less](https://less.bootcss.com/) 和 [SCSS](https://www.sass.hk/guide/)，这两者本质上没有太大的区别，只是语法层面的不同。
 
 ### Less 踩坑
 
-对于 Vue CLI 2，如果安装的 Less 版本太高，可能会报错，建议安装版本：`less@3.0.4` 和 `less-loader@5.0.0`
+如果安装的 Less 版本太高，可能会报错，建议锁定 Less 版本： `less@3.0.4` 和 `less-loader@5.0.0`
 
 ### 全局样式
 
@@ -120,7 +119,7 @@ table {
 ```css
 @import './reset.css';
 
-// 定义一些全局样式
+// 定义全局通用样式
 ```
 除了覆盖默认样式，还可以在 `global.less` 中定义一些全局通用的样式。
 
@@ -134,33 +133,34 @@ table {
 ├─ src
   ├─ styles
     ├─ global.less            # 全局样式
-    ├─ mixin.less             # 全局 mixin
+    ├─ mixins.less            # 全局 mixin
     ├─ reset.css              # 覆盖浏览器默认样式
     ├─ variables.less         # 全局变量
 ```
 
-尽管定义了通用的 `variables.less` 和 `mixin.less`，使用时仍然需要在用到的每个组件中手动导入，较为繁琐，因此需要自动化导入这些文件。
+尽管定义了通用的 `variables.less` 和 `mixins.less`，使用时仍然需要在用到的每个组件中手动导入，较为繁琐，因此需要自动化导入这些文件。
 
-首先，安装 `sass-resources-loader`（通用）：
+首先，安装插件：
 
 ```sh
-npm install --save-dev sass-resources-loader
+npm install --save-dev style-resources-loader vue-cli-plugin-style-resources-loader
 ```
 
-打开 `build/utils.js` 文件，修改 `less: generateLoaders('less')`：
+然后修改 `vue.config.js` 配置文件：
 
 ```js
-return {
-  less: generateLoaders('less').concat({
-    loader: 'sass-resources-loader',
-      options: {
-        resources: [
-          path.resolve(__dirname, '../src/styles/mixin.less'),
-          path.resolve(__dirname, '../src/styles/variables.less')
-        ]
-      }
-    })
-  })
+const path = require('path')
+
+module.exports = {
+  pluginOptions: {
+    'style-resources-loader': {
+      preProcessor: 'less',
+      patterns: [
+        path.resolve(__dirname, './src/styles/mixins.less'),
+        path.resolve(__dirname, './src/styles/variables.less')
+      ]
+    }
+  }
 }
 ```
 
@@ -168,11 +168,12 @@ return {
 
 [▲ 回顶部](#top)
 
+
 ## <span id="eslint">ESlint + Standard 统一代码规范</span>
 
 ESLint 是在 ECMAScript/JavaScript 代码中识别和报告模式匹配的工具，它的目标是保证代码的一致性和避免错误。统一代码规范，有助于个人养成良好的代码习惯，同时也可以降低团队开发的代码维护成本。 ESLint 的详细用法和检查规则可以参考 [官方文档](https://eslint.bootcss.com/)。
 
-Vue CLI 初始化的时候可以选择安装 ESLint 和 Standard 代码风格，其中 `.eslintrc.js` 是 ESLint 的配置文件。
+Vue CLI 初始化的时候可以选择安装 ESLint 和 Standard 代码风格，你也可以通过运行 `vue add eslint` 命令来初始化 ESLint，其中 `.eslintrc.js` 是 ESLint 的配置文件。
 
 ### VS Code 安装 ESLint 插件
 
@@ -196,11 +197,12 @@ Vue CLI 初始化的时候可以选择安装 ESLint 和 Standard 代码风格，
 
 参考 [《Vue 风格指南》](https://cn.vuejs.org/v2/style-guide/)
 
-[▲ 回顶部](#top)
-
-### VS Code Code Spell Checker
+### 拼写检查插件
 
 VS Code 上安装 Code Spell Checker 插件，可以用于检查拼写错误，减少代码的语法错误。
+
+[▲ 回顶部](#top)
+
 
 ## <span id="ui">UI 组件库规范</span>
 
@@ -216,7 +218,7 @@ UI 组件库的不做统一的要求，根据策划和设计的需求，以及�
 
 按需引入，建议在一个单独的文件中进行全局引入，方便扩展，同时避免 `main.js` 入口文件代码混乱，以 Ant Design Vue 为例：
 
-创建 `src/library/ant-design-vue.js`：
+创建 `src/plugins/ant-design-vue.js`：
 
 ```js
 import Vue from 'vue'
@@ -238,11 +240,11 @@ Vue.prototype.$message = Message
 
 按需引入组件，例如 `Button`，除了会引入该组件样式，还会引入一些全局样式，使得页面的样式不符合我们的预期，比较推荐的做法是，参考上面讲到的全局样式，引入一个 `styles/reset.css`，在组件库之后引入，对全局样式进行覆盖，同时也统一了不同浏览器下的默认样式。
 
-##### 图标按需导入
+##### 图标按需导入（后期优化）
 
-即使只按需导入 `Button`， 使用 `webpack-bundle-analyzer` 打包分析工具（后面性能优化会讲到），会发现打包后的代码量仍然很大，这是因为 `Button` 组件中的 `icon` 属性默认将所有的图标引入，官方在 github 上提供的图标按需导入方法：
+即使只按需导入 `Button`， 使用打包分析工具，会发现打包后的代码量仍然很大，这是因为 `Button` 组件中的 `icon` 属性默认将所有的图标引入，官方在 github 上提供的图标按需导入方法：
 
-1.创建 `src/library/Antd/icons.js`，用于图标按需导入：
+1.创建 `src/plugins/ant-icons.js`，用于图标按需导入：
 
 ```js
 export {
@@ -259,59 +261,24 @@ export {
 
 当使用到的组件包含图标时（例如按钮的图标，模态框的图标等），需要按导入，具体图标对应的路径参考：[https://github.com/vueComponent/pro-layout/blob/master/examples/src/core/antd/icons.js](https://github.com/vueComponent/pro-layout/blob/master/examples/src/core/antd/icons.js) 或者在 `node_modules/@ant-design/icons/lib` 目录下查找。
 
-2.修改 `build/webpack.base.conf.js` 配置文件：
+2.修改 `vue.config.js` 配置文件：
 
 ```js
 module.exports = {
-  resolve: {
-    alias: {
-      '@ant-design/icons/lib/dist$': resolve('./src/library/Antd/icons.js')
+  configureWebpack: {
+    resolve: {
+      alias: {
+        '@ant-design/icons/lib/dist$': path.resolve(__dirname, './src/plugins/ant-icons.js')
+      }
     }
   }
 }
 ```
 
-定义 `icons` 的解析策略，当解析 `icons` 的资源路径时，从 `./src/library/Antd/icons.js` 中进行导入，这样就实现了图标的按需导入，减少了打包体积。
-
-##### 排除 moment 语言包
-
-Ant Design Vue 使用 `moment`，默认会导入各种语言包，增加打包后体积，解决的办法是在生产环境的配置文件 `build/webpack.prod.conf.js` 中忽略 `moment` 语言包：
-
-```js
-const webpack = require('webpack')
-
-module.exports = {
-    plugins: [
-        new webpack.IgnorePlugin(/^\.\/locale/, /moment$/)
-    ]
-}
-```
+定义 `icons` 的解析策略，当解析 `icons` 的资源路径时，从 `./src/plugins/ant-icons.js` 中进行导入，这样就实现了图标的按需导入，减少了打包体积。
 
 [▲ 回顶部](#top)
 
-## <span id="es6">ES6 兼容 IE</span>
-
-ES6 可以分为新语法和新的 API，`let`、`const`、箭头函数，解构赋值等都属于新语法，新增的对象或者新增的方法属于新的 API，例如 `Promise` 对象，`Array.includes()` 方法。`Babel` 默认只会转换新语法，不会转换新的 API，Vue-CLI2 中使用 Webacpk3，新的 API 需要通过引入 `babel-polyfill` 来兼容环境。
-
-首先，安装 `babel-polyfill`：
-
-```sh
-npm install --save babel-polyfill
-```
-
-然后，修改 Webpack 的入口配置：
-
-```js
-// build/webpack.base.conf.js
-
-module.exports = {
-  // entry: {
-  //   app: './src/main.js'
-  // },
-  // ES6 兼容 IE
-  entry: ['babel-polyfill', './src/main.js'],
-}
-```
 
 ## <span id="axios">封装 axios 和 api</span>
 
@@ -327,49 +294,30 @@ Vue 项目一般采用 [axios](http://www.axios-js.com/zh-cn/docs/) 进行接口
 
 ```js
 import axios from 'axios'
+import { Notification } from 'ant-design-vue'
 
 const http = axios.create({
-  baseURL: 'http:xxx', // api base_url
+  baseURL: 'http://xxx/api', // api base_url
   timeout: 6000 // 请求超时时间
 })
 
 // 请求拦截
 http.interceptors.request.use(
-  config => {
-    // 请求头携带Token
-    // const token = localStorage.getItem('token')
-    // if (token) {
-    //   config.headers.Authorization = token
-    // }
-    return config
-  },
+  config => config,
   error => Promise.reject(error)
 )
 
 // 响应拦截
 http.interceptors.response.use(
-  response => Promise.resolve(response),
+  response => response.data,
   error => {
-    // 请求错误统一处理
     if (error.response) {
-      switch (error.response.status) {
-        // TODO Notification 组件提示
-        case 401:
-          console.log('登录过期，请重新登录')
-          break
-        case 403:
-          console.log('拒绝访问')
-          break
-        case 404:
-          console.log('请求不存在')
-          break
-        case 500:
-          console.log('服务器错误')
-          break
-        default:
-          console.log(error.response.data.message)
-          break
-      }
+      // 提示错误信息
+      const { status, data } = error.response
+      Notification.error({
+        message: status,
+        description: data.message
+      })
     }
     return Promise.reject(error)
   }
@@ -378,19 +326,23 @@ http.interceptors.response.use(
 export default http
 ```
 
-以上为基本的 axios 配置，可以根据实际需要进行扩展，例如，请求时统一添加签名；对于管理系统的项目，可以用 `Notification` 或者 `Modal` 组件打印错误信息，方便对线上版本修改 bug；登录过期重定向到登录页等。
+以上为基本的 `axios` 配置，可以根据实际需要进行扩展，例如，在请求头中统一添加鉴权 token，登录过期重定向到登录页等。
 
 #### 封装 get 和 post 请求
 
-请求可以有多种请求方式，例如 `GET`、`POST`、`PUT`、`DELETE` 等，为了简化代码，可以对 axios 进一步封装：
+请求可以有多种请求方式，例如 `GET`、`POST`、`PUT`、`DELETE` 等，为了简化代码，可以对 `axios` 进一步封装：
 
 ```js
 const http = axios.create({
-  baseURL: 'http:xxx',
+  baseURL: 'http://xxx/api',
   timeout: 6000
 })
 
 // ...
+
+// export default http
+
+// 封装 get 请求
 export const get = (url, params = {}, config = {}) => {
   return http({
     url,
@@ -400,6 +352,7 @@ export const get = (url, params = {}, config = {}) => {
   })
 }
 
+// 封装 post 请求
 export const post = (url, data = {}, config = {}) => {
   return http({
     url,
@@ -408,30 +361,36 @@ export const post = (url, data = {}, config = {}) => {
     ...config
   })
 }
-
-// export default http
 ```
 
 #### 环境的切换
 
-我们的项目环境可能有开发环境、测试环境和生产环境等。可以通过 node 的环境变量动态匹配请求的 URL：
+项目环境包含开发环境、生产环境和测试环境。为了区分不同的环境，可以创建环境文件来指定环境变量，参考：[Vue CLI 模式与环境变量](https://cli.vuejs.org/zh/guide/mode-and-env.html)
 
-```js
-const http = axios.create({
-  timeout: 6000
-})
+创建 `.env.development` 和 `.env.production`：
 
-// 根据环境切换请求URL
-if (process.env.NODE_ENV === 'development') {
-  request.baseURL = 'http://xxx:8080'
-} else if (process.env.NODE_ENV === 'production') {
-  request.baseURL = 'http://xxx'
-}
+```
+NODE_ENV=development
+VUE_APP_API_BASE_URL=http://xxx/api
 ```
 
-### api 管理
+```
+NODE_ENV=production
+VUE_APP_API_BASE_URL=http://xxx.com/api
+```
 
-#### 模块化管理
+修改 `src/api/utils/http.js`：
+
+```js
+import axios from 'axios'
+
+const http = axios.create({
+  baseURL: process.env.VUE_APP_API_BASE_URL, // api base_url
+  timeout: 6000 // 请求超时时间
+})
+```
+
+### api 模块化管理
 
 在 `src/api` 目录下管理 api，每个模块的 api 对应一个文件，便于扩展和维护。例如：
 
@@ -441,39 +400,43 @@ if (process.env.NODE_ENV === 'development') {
     ├─ utils
       └─ http.js
     ├─ course.js
-    └─ user.js
+    └─ login.js
 ```
 
 结合之前封装 axios， 单个模块的内容可以为：
 
 ```js
-// user.js
+// login.js
+
 import { get, post } from './utils/http'
 
 export const login = data => post('/user/login', data)
 
-export const getLoginInfo = () => get('/user/info')
+export const getInfo = () => get('/user/info')
 ```
 
-如果一个模块可以划分为更小的功能单元，则可以创建文件夹和多个文件，文件夹表示主模块，文件表示子模块。
-
-#### 多个 api 域名
-
-有些时候，除了区分开发环境和生产环境，我们还需要同时向不同的域名请求数据，针对这种情况，可以创建 `src/api/utils/baseURL.js`， 用于管理接口域名：
+> 注意：一般情况下，如果接口需要传递参数，推荐像上面 `login` 接口一样原封不动传 `data` 参数，这样调接口的时候，参数就和 api 文档保持一致，只需要查看 api 文档即可，否则调用接口既需要看 api 文档，还要修改接口的封装，参考下面的说明。
 
 ```js
-const baseURL = {
-  devAPI: 'http://xxx/dev/api',
-  prodAPI: 'http://xxx/production/api',
-  courseAPI: 'http://xxx/course/api',
-  userAPI: 'http://xxx/user/api'
-}
+// 推荐的写法：
+export const login = data => post('/user/login', data)
 
-export default baseURL
+login({
+  account: 'admin',
+  password: '123456'
+})
 
+// 不推荐的写法：
+export const login = (account, password) => post('/user/login', {
+  account,
+  password
+})
+
+login('admin', '123456')
 ```
 
 [▲ 回顶部](#top)
+
 
 ## <span id="login">登录拦截</span>
 
@@ -482,78 +445,99 @@ export default baseURL
 1. 路由拦截，每次访问页面前，先检查本地是否有 token，如果没有，则跳转到登录页，执行第 2 步；如果有，执行第 3 步
 2. 用户使用账号密码登录后，获取 token，将 token 缓存到本地
 3. 所有（需要鉴权）的接口访问时，都要在请求头中携带 token
-4. 携带 token 请求数据（一般是用户基本信息），如果返回 401 未授权，说明 token 过期，需要跳转到登录页，执行第 2 步
+4. 携带 token 请求数据，如果返回 401 未授权，说明 token 过期，需要跳转到登录页，执行第 2 步
 
 ### 登录拦截实现过程
 
-1.Vuex 封装登录状态和登录/登出接口
+1. Vuex 封装登录和退出登录接口
 
 ```js
-// src/store/user.js
+// src/store/modules/user.js
 
-import { login, getLoginInfo } from '@/api/user'
+import { login, getInfo } from '@/api/login'
 
-const login = {
+const user = {
   state: {
-    loginInfo: null
+    info: null // 用户基本信息，用户判断是否登录
   },
   mutations: {
-    SET_LOGIN_INFO (state, loginInfo) {
-      state.loginInfo = loginInfo
+    SET_INFO (state, info) {
+      state.info = info
     }
   },
   actions: {
     // 封装登录接口
-    async Login ({ commit }, account) {
+    async Login ({ commit }, loginInfo) {
       try {
-        const res = await login(account)
-        if (res.data.data && res.data.data.token) {
-          const token = res.data.data.data.token
-          // 缓存token
-          localStorage.setItem('token', `Bearer ${token}`)
-        }
-        return res
+        const res = await login(loginInfo)
+        const token = res.data.token
+        // 缓存 token
+        localStorage.setItem('token', `Bearer ${token}`)
       } catch (error) {
         return Promise.reject(error)
       }
     },
-    // 获取用户基本信息（判断token是否过期）
-    async GetLoginInfo ({ commit }) {
+    // 获取用户基本信息，用于判断登录是否过期
+    async GetInfo ({ commit }) {
       try {
-        const res = await getLoginInfo()
-        const loginInfo = res.data.data
-        if (loginInfo) {
-          commit('SET_LOGIN_INFO', loginInfo)
-        }
-        return res
+        const res = await getInfo()
+        const info = res.data
+        commit('SET_INFO', info)
       } catch (error) {
         return Promise.reject(error)
       }
     },
     // 退出登录
     async Logout ({ commit }) {
-      // TODO 退出登录接口
-      // 移除token
+      // TODO 退出登录接口（如果需要）
+      // 移除 token，清空个人信息
       localStorage.removeItem('token')
-      commit('SET_LOGIN_INFO', null)
+      commit('SET_INFO', null)
     }
   }
 }
 
-export default login
+export default user
 ```
 
-2.请求拦截和响应拦截（参考 [封装 axios 和 api](#axios)）
+```js
+// src/store/index.js
+
+import Vue from 'vue'
+import Vuex from 'vuex'
+import user from './modules/user'
+
+Vue.use(Vuex)
+
+export default new Vuex.Store({
+  state: {
+  },
+  mutations: {
+  },
+  actions: {
+  },
+  modules: {
+    user
+  }
+})
+```
+
+2. 请求拦截和响应拦截（参考 [封装 axios 和 api](#axios)）
 
 ```js
-// src/api/utils/http
+// src/api/utils/http.js
+import axios from 'axios'
+import { Notification } from 'ant-design-vue'
 
-// ...
+const http = axios.create({
+  baseURL: 'process.env.VUE_APP_API_BASE_URL', // api base_url
+  timeout: 6000 // 请求超时时间
+})
 
 // 请求拦截
 http.interceptors.request.use(
   config => {
-    // 请求头携带Token
+    // 请求头携带 token
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = token
@@ -565,37 +549,46 @@ http.interceptors.request.use(
 
 // 响应拦截
 http.interceptors.response.use(
-  response => Promise.resolve(response),
+  response => {
+    return Promise.resolve(response.data)
+  },
   error => {
     if (error.response) {
-      switch (error.response.status) {
-        case 401:
-          console.log('登录过期，请重新登录')
-          // TODO 登录过期提示
-          // 重新加载当前页（结合路由守卫，可以重定向到登录页）
-          window.location.reload()
-          break
-        // ...
+      const { status, data } = error.response
+      Notification.error({
+        message: status,
+        description: data.message
+      })
+      if (status === 401) {
+        // token 过期，打开登录页（路由守卫）
+        store.dispatch('Logout').then(() => {
+          setTimeout(() => {
+            window.location.reload()
+          }, 1000)
+        })
       }
     }
     return Promise.reject(error)
   }
 )
 
-export default http
+// export default http
+
+// ...
 ```
 
-3.路由守卫，登录拦截
+2. 路由守卫，登录拦截
 
 ```js
 // src/router/index.js
 
 import Vue from 'vue'
 import VueRouter from 'vue-router'
-import store from '../store/index'
-// ...
+import store from '@/store'
 
-// hack router push callback（避免某些版本的vue-router跳转到相同页面报错）
+Vue.use(VueRouter)
+
+// hack router push callback（避免vue-router跳转到相同页面报错）
 const originalPush = VueRouter.prototype.push
 VueRouter.prototype.push = function push (location, onResolve, onReject) {
   if (onResolve || onReject) {
@@ -605,41 +598,78 @@ VueRouter.prototype.push = function push (location, onResolve, onReject) {
 }
 
 const routes = [
-  // ...
+  {
+    path: '/',
+    redirect: '/home'
+  },
+  {
+    path: '/home',
+    component: () => import('@/views/Home')
+  },
+  {
+    path: '/login',
+    component: () => import('@/views/Login')
+  }
 ]
 
 const router = new VueRouter({
+  mode: 'history',
+  base: process.env.BASE_URL,
   routes
 })
+
+// 免登录白名单
+const whiteList = ['/login']
+
+// router.beforeEach((to, from, next) => {
+//   const token = localStorage.getItem('token')
+//   if (token) {
+//     next()
+//   } else {
+//     if (whiteList.includes(to.path)) {
+//       next()
+//     } else {
+//       next('/login')
+//     }
+//   }
+// })
 
 // 路由守卫，登录拦截
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   if (token) {
-    if (store.state.user.loginInfo) {
-      // vuex可以获取到登录状态，说明token有效
-      next()
+    if (to.path === '/login') {
+      next('/')
     } else {
-      // 刷新页面，或者关闭页面后重新打开，vuex 失效，则重新获取
-      store.dispatch('GetLoginInfo')
-        .then(res => {
-        // 可以获取到登录状态，说明 token 仍然有效
-          next()
-        })
-        .catch(error => {
-        // 获取失败，重新登录
-          console.log(error)
-          store.dispatch('Logout').then(() => {
-            next('/login')
+      if (store.state.user.info) {
+        // vuex 可以获取到用户信息，说明 token 有效
+        next()
+      } else {
+        // 刷新页面，或者关闭页面后重新打开，vuex 失效，则重新获取
+        store.dispatch('GetInfo')
+          .then(res => {
+            // 可以获取到登录状态，说明 token 仍然有效
+            next()
           })
-        })
+          .catch(() => {
+            // 获取失败，重新登录
+            Notification.error({
+              message: '错误',
+              description: '请求用户信息失败，请重试'
+            })
+            store.dispatch('Logout').then(() => {
+              next('/login')
+            })
+          })
+      }
     }
   } else {
-    // 没有token（未登录/已经退出登录），跳转到登录页
-    // 如果当前要跳转的页面不是登录页，则跳转到登录页（避免死循环）
-    if (to.path === '/login') {
+    // 没有 token（未登录/已退出登录）
+    if (whiteList.includes(to.path)) {
+      // 免登录白名单，不需要登录
       next()
     } else {
+      // 跳转到登录页
       next('/login')
     }
   }
@@ -648,62 +678,8 @@ router.beforeEach((to, from, next) => {
 export default router
 ```
 
-4.页面中实现登录和登出
-
-```js
-// Login.vue
-
-<script>
-import { mapActions } from 'vuex'
-
-export default {
-  // ...
-
-  methods: {
-    ...mapActions(['Login']),
-    async onLogin () {
-      // TODO 表单校验
-      try {
-        await this.Login({
-          // 账号密码
-          // ...
-        })
-        // 登录成功，重定向到首页
-        this.$router.push('/')
-      } catch (error) {
-        // TODO 错误提示
-      }
-    }
-  }
-}
-</script>
-```
-
-```js
-// LogoutButton.vue
-
-<script>
-import { mapActions } from 'vuex'
-
-export default {
-  // ...
-
-  methods: {
-    ...mapActions(['Logout']),
-    onLogout () {
-      // TODO 退出确认框
-      this.Logout().then(() => {
-        this.$router.push('/login')
-      })
-    }
-  }
-}
-</script>
-```
-
-> `Vuex` 参考 [Vuex 官方文档](https://vuex.vuejs.org/zh/)，路由守卫参考 [Vue Router 官方文档](https://router.vuejs.org/zh/guide/advanced/navigation-guards.html#%E5%85%A8%E5%B1%80%E5%89%8D%E7%BD%AE%E5%AE%88%E5%8D%AB)，`async/await` 语法参考 [《ES6入门教程——阮一峰》](https://es6.ruanyifeng.com/)
-
 [▲ 回顶部](#top)
+
 
 ## <span id="authorization">权限控制</span>
 
@@ -713,113 +689,101 @@ export default {
 
 #### 路由权限
 
-路由权限，即对角色允许访问的页面进行控制，如果角色没有权限访问当前页面，应当跳转到 404 页面。
-
 ##### 路由权限的实现思路
 
-1. 后端应该提供 `role(Array)` 字段，前端登录后可以获取到用户所属角色；
+1. 后端应该提供 `roles(Array)` 字段，前端登录后可以获取到用户所属角色；
 2. 前端实现基本/通用路由表，这个路由表是静态的，包含不需要登录就可以访问的公共页面，例如：登录页、404 页面等；
 3. 准备需要根据权限动态加载的路由表，这个路由表可以是前端定义，也可以是后台创建，前端定义的路由表内指定允许访问的角色列表；
-4. 用户登录后，根据 `role` 比对动态路由表，筛选出可以访问的动态路由表，合并通用路由表，最终生成用户可以访问的路由表。
+4. 用户登录后，根据 `roles` 比对动态路由表，筛选出可以访问的动态路由表，合并通用路由表，最终生成用户可以访问的路由表。
 
 ##### 路由权限的具体实现
 
-1.创建通用路由表
+1. 创建通用路由表
 
 ```js
 // src/router/index.js
 
 import Vue from 'vue'
-import Router from 'vue-router'
-// ...
+import VueRouter from 'vue-router'
 
-Vue.use(Router)
+Vue.use(VueRouter)
+
+// ...
 
 // 通用路由表
 export const constantRouterMap = [
   {
     path: '/login',
-    name: "login",
-    component: Login
-  },
-  {
-    path: '/',
-    component: BasicLayout,
-    redirect: '/index'
+    component: () => import('@/views/Login')
   },
   {
     path: '/404',
-    name: '404',
     component: () => import('@/views/404')
   }
 ]
 
-const router = new Router({
+const router = new VueRouter({
+  mode: 'history',
+  base: process.env.BASE_URL,
   routes: constantRouterMap
 })
+
+// ...
 
 export default router
 ```
 
-2.创建动态路由表
+2. 创建动态路由表
 
 前端：
 
 ```js
 // src/router/index.js
 
+// 动态路由表
 export const asyncRouterMap = [
   {
     path: '/',
     component: BasicLayout,
-    meta: { title: '首页' },
+    redirect: '/home',
     children: [
       {
-        path: '/index',
-        component: () => import('@/views/Index'),
-        meta: { title: '欢迎页' }
+        path: '/home',
+        component: () => import('@/views/Home'),
+        meta: { title: '首页', icon: 'home' }
       },
       {
         path: '/user',
-        component: RouteView,
-        redirect: '/user/list',
-        meta: { title: '用户管理', role: ['operator'] },
-        children: [
-          {
-            path: '/user/list',
-            component: () => import('@/views/User/List'),
-            meta: { title: '用户列表', role: ['operator'] }
-          },
-          {
-            path: '/user/login',
-            component: () => import('@/views/User/Login'),
-            meta: { title: '登录记录', role: ['operator'] }
-          }
-        ]
+        component: () => import('@/views/User'),
+        meta: { title: '用户管理', icon: 'user', roles: ['operator'] }
       },
       {
         path: '/system',
+        meta: { title: '系统管理', icon: 'setting', roles: ['admin'] },
         component: RouteView,
-        redirect: '/system/account',
-        meta: { title: '系统管理', role: ['admin'] },
         children: [
           {
-            path: '/system/account',
-            component: () => import('@/views/System/Account'),
-            meta: { title: '账号管理', role: ['admin'] }
+            path: '/system/role',
+            component: () => import('@/views/system/SystemRole'),
+            meta: { title: '角色管理' }
+          },
+          {
+            path: '/system/menu',
+            component: () => import('@/views/system/SystemMenu'),
+            meta: { title: '菜单管理' }
           }
         ]
       }
     ]
   },
   {
-    path: '*',
+    path: '/*',
     redirect: '/404'
   }
 ]
 ```
 
-上面的例子包含两种角色：普通运营（operator）和超级管理员（admin），通过 `meta.role` 指定允许访问的角色，不指定时所有角色都可以访问。
+上面的例子包含两种角色：普通运营（operator）和超级管理员（admin），通过 `meta.roles` 指定允许访问的角色，不指定时所有角色都可以访问。
 
 最后其他未匹配到的路由，需要重定向到 404 页面。
 
@@ -827,24 +791,24 @@ export const asyncRouterMap = [
 
 ![权限控制-动态路由](./docs/images/authority_routes.png)
 
-3.`Vuex` 管理路由权限
+3. `Vuex` 管理路由权限
 
 ```js
 // src/store/permission.js
 
-import { constantRouterMap, asyncRouterMap } from '@/router/index'
+import { constantRouterMap, asyncRouterMap } from '@/router'
 
 // 判断用户是否拥有当前页面的权限
-function hasPermission(route, roles) {
-  if (route.meta && route.meta.role) {
-    return roles.some(role => route.meta.role.includes(role))
+function hasPermission (route, roles) {
+  if (route.meta?.roles) {
+    return roles.some(role => route.meta.roles.includes(role))
   }
   return true
 }
 
 // 根据权限过滤，获取动态路由表
-function filterAsyncRouters(routerMap, roles) {
-  let accessedRouters = routerMap.filter(route => {
+function filterAsyncRouters (routerMap, roles) {
+  const accessedRouters = routerMap.filter(route => {
     // 超级管理员，返回全部路由
     if (roles.includes('admin')) {
       return true
@@ -858,7 +822,7 @@ function filterAsyncRouters(routerMap, roles) {
       return true
     }
     return false
-  });
+  })
   return accessedRouters
 }
 
@@ -868,19 +832,17 @@ const permission = {
     addRouters: []
   },
   mutations: {
-    SET_ROUTERS(state, routers) {
+    SET_ROUTERS (state, routers) {
       state.addRouters = routers
       state.routers = constantRouterMap.concat(routers)
     }
   },
   actions: {
-    GenerateRoutes( { commit }, roles) {
+    GenerateRoutes ({ commit }, roles) {
       return new Promise(resolve => {
-        // 根据role权限做筛选
+        // 根据 roles 权限做筛选
         const accessedRouters = filterAsyncRouters(asyncRouterMap, roles)
         commit('SET_ROUTERS', accessedRouters)
-        // TODO Vuex user中应该管理roles(Array)状态，此处略
-        commit('SET_USER_ROLES', roles)
         resolve()
       })
     }
@@ -889,65 +851,89 @@ const permission = {
 
 export default permission
 ```
+
 `GenerateRoutes(roles [])` 函数，根据用户的角色，最终筛选出允许访问的路由表。 
 
-4.路由守卫
+4. 路由守卫
 
 路由权限控制需要基于登录功能，参考上文 [登录拦截](#login)。
 
 ```js
 // src/router/index.js
 
+// 免登录白名单
+const whiteList = ['/login', '/404']
+
+// 路由守卫，登录拦截
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   if (token) {
-    // 有token
     if (to.path === '/login') {
-      next('')
+      next('/')
     } else {
-      // Vuex中无用户role，即无路由表，则重新获取角色和路由表（登录或者手动刷新页面时无路由）
-      if (!store.state.user.role.length) {
-        store.dispatch('GetLoginInfo').then(res => {
-          const roles = res.data.roles
-          // 动态分发路由
-          store.dispatch('GenerateRoutes', roles)
-          .then(() => {
-            router.addRoutes(store.state.permission.routers)
-            // hack方法，确保addRoutes已完成
-            next({ ...to, replace: true })
-          })
-        })
-      } else {
+      if (store.state.user.roles.length) {
+        // vuex 可以获取到用户信息，说明 token 有效
         next()
+      } else {
+        // 刷新页面，或者关闭页面后重新打开，vuex 失效，则重新获取
+        store.dispatch('GetInfo')
+          .then(() => {
+            // 动态分发路由
+            const roles = store.state.user.roles
+            store.dispatch('GenerateRoutes', roles).then(() => {
+              router.addRoutes(store.state.permission.addRouters)
+              // hack 方法，确保 addRoutes 已完成
+              next({ ...to, replace: true })
+            })
+          })
+          .catch(() => {
+            // 获取失败，重新登录
+            Notification.error({
+              message: '错误',
+              description: '请求用户信息失败，请重试'
+            })
+            store.dispatch('Logout').then(() => {
+              next('/login')
+            })
+          })
       }
     }
   } else {
-    // 无token，返回登录页
-    if (to.path === '/login') {
+    // 无 token
+    if (whiteList.includes(to.path)) {
+      // 免登录白名单，不需要登录
       next()
     } else {
+      // 跳转到登录页
       next('/login')
     }
   }
 })
-
-export default router
 ```
 
-> Vue2.2.0 以后，可以通过 `router.addRoutes` 动态添加路由
+> 注意：新版本的 Vue Router 中废弃了 `addRoutes` 方法，采用 `addRoute` 方法
+
+```js
+// router.addRoutes(store.state.permission.addRouters)
+
+store.state.permission.addRouters.forEach(route => {
+  router.addRoute(route)
+})
+```
 
 #### 侧边栏
 
 侧边栏基于路由权限，只有用户有权访问的页面，才会在侧边栏的菜单中出现。一般的做法是基于组件库的侧边栏/菜单组件，使用递归组件，根据路由表进行渲染。参考 [Ant-Design-Vue-导航菜单-单文件递归菜单](https://www.antdv.com/components/menu-cn/#components-menu-demo-single-file-recursive-menu)。
 
-侧边栏一般不会显示整个路由表，而是选取 `path` 为 `'/'` 的路由的 `children`。如果不希望某个特定的路由出现在侧边栏中，可以添加 `meta.hide` 字段，渲染菜单的时候根据需要隐藏。
+侧边栏一般不会显示整个路由表，而是选取 `path` 为 `'/'` 的路由的 `children`。如果不希望某个特定的路由出现在侧边栏中，可以添加 `meta.hidden` 字段，渲染菜单时根据需要隐藏。
 
 ```js
-let menus = routes.find(route => route.path === '/')
+// const menus = routes.find(route => route.path === '/')
+const menus = this.addRouters.find(route => route.path === '/')
 menus = (menus && menus.children) || [] 
 ```
 
-侧边栏除了点击菜单显示对应页面，还应该实现：根据路由展开/高亮对应的菜单。做法是在侧边栏组件 `mounted` 生命周期触发时，以及监听（`watch`）路由变化时，比对当前路由和侧边栏，展开/高亮对应菜单。
+侧边栏除了点击菜单显示对应页面，还应该实现：根据路由展开/高亮对应的菜单。做法是在侧边栏组件 `created` 生命周期触发时，以及监听（`watch`）路由变化时，比对当前路由和侧边栏，展开/高亮对应菜单。
 
 ### 接口/请求/资源权限
 
@@ -983,26 +969,6 @@ menus = (menus && menus.children) || []
 
 [▲ 回顶部](#top)
 
-## <span id="webpack">Webpack</span>
-
-Webpack 是一个现代 JavaScript 应用程序的静态模块打包器，是前端工程化必备的内容。
-
-[Webpack 中文文档](https://webpack.docschina.org/concepts/)
-
-[Webpack 英文文档](https://webpack.js.org/concepts/)
-
-参考 Webpack 文档的指南（guides），可以快速上手。
-
-> 注意：Vue-CLI2 默认使用的是 Webpack3，部分配置可能与新版的 Webpack 不一样。
-
-### 开发环境和生产环境
-
-开发环境（development）和生产环境（production）的构建目标差异很大。在开发环境中，我们需要具有强大的、具有实时重新加载（live reloading）或热模块替换（hot module replacement）能力的 source map 和 localhost server。而在生产环境中，我们的目标则转向于关注更小的 bundle，更轻量的 source map，以及更优化的资源，以改善加载时间。由于要遵循逻辑分离，我们通常建议为每个环境编写彼此独立的 webpack 配置。
-
-Vue CLI 2 项目中，`build/` 文件夹包含了基本的 Webpack 配置，其中，`webpack.base.conf.js` 是通用的环境配置，`webpack.dev.conf.js` 是开发环境配置，`webpack.prod.conf.js` 是生产环境配置。Vue CLI 2 默认已经配置了很多 Webpack 的内容，只需要根据项目需要修改即可。
-
-
-[▲ 回顶部](#top)
 
 ## <span id="git">Git 规范</span>
 
@@ -1042,6 +1008,7 @@ git commit -m "feat: 课程模块新增搜索功能"
 
 [▲ 回顶部](#top)
 
+
 ## <span id="document">文档规范</span>
 
 文档对于项目的开发、迭代、重构和项目移交都非常重要。
@@ -1063,6 +1030,7 @@ git commit -m "feat: 课程模块新增搜索功能"
 
 [▲ 回顶部](#top)
 
+
 ## <span id="performance">性能优化</span>
 
 ### 常见性能分析工具
@@ -1075,9 +1043,11 @@ git commit -m "feat: 课程模块新增搜索功能"
 
 ![打包分析](./docs/images/bundle_analyzer.gif)
 
-Vue CLI 2 自带这个插件，运行编译命令 `npm run build --report`。
+Vue CLI4 的图形化界面集成了打包分析。
 
-编译后自动打开分析页面，可以直观看到各个模块打包后的相对大小，我们就可以有针对性地对模块进行优化。除此之外，还能看到各个模块代码的原始大小（stat）、编译后的大小（parsed）以及压缩后的大小（Gzipped）。
+运行 `vue ui`，点击“任务->build->运行”，在“仪表盘”或者“分析”模块中可以看到打包信息：
+
+![打包分析](./docs/images/bundle_analyzer.png)
 
 #### Lighthouse
 
@@ -1432,7 +1402,7 @@ export default {
 
 #### 函数防抖（debounce）/ 节流（throttle）
 
-某些业务场景会频繁触发事件，例如页面滚动触发 `onscroll`、改变窗口大小触发 `onresize` 和 鼠标滑过触发 `onmousemove` 等，如果频繁触发某个事件（特别是请求或复杂的 DOM 操作），会降低页面的性能。
+某些业务场景会频繁触发事件，例如页面滚动触发 `onscroll`、改变窗口大小触发 `onresize` 、鼠标滑过触发 `onmousemove` 和表单输入触发 `oninput` 等，如果频繁触发某个事件（特别是请求或复杂的 DOM 操作），会降低页面的性能。
 
 #### 函数防抖
 
@@ -1488,7 +1458,7 @@ SPA 的首屏加载相对较慢，会出现一段时间的空白，影响用户�
 
 ### Webpack 构建优化
 
-Vue CLI 2 默认的 Webpack 配置，已经实现了一些前端项目的性能优化，包括但不限于：
+Vue CLI4 默认的 Webpack 配置，已经实现了一些前端项目的性能优化，包括但不限于：
 
 - CSS 根据最低浏览器添加产商前缀
 - 打包 CSS 和 JS 等代码，减少文件个数，从而减少请求次数
@@ -1513,18 +1483,19 @@ Webpack 中，我们通过 `externals` 属性，以外部扩展的形式引入�
 </body>
 ```
 
-修改 `build/webpack.base.conf.js` 配置文件：
+修改 `vue.config.js` 配置文件：
 
 ```js
 module.exports = {
-  externals: {
-    vue: 'Vue',
-    'vue-router': 'VueRouter'
+  configureWebpack: {
+    externals: {
+      vue: 'Vue',
+      'vue-router': 'VueRouter'
+    }
   }
 }
 ```
 
-> 注意
-> 如果某个第三方库支持按需导入，则优先考虑按需导入，而不是 CDN 引入。
+> 注意：如果某个第三方库支持按需导入，则优先考虑按需导入，而不是 CDN 引入。
 
 [▲ 回顶部](#top)

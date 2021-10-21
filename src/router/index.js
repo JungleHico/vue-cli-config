@@ -1,31 +1,22 @@
 import Vue from 'vue'
-import Router from 'vue-router'
-import store from '../store/index'
-import BasicLayout from '../layouts/BasicLayout'
+import VueRouter from 'vue-router'
+import store from '@/store'
+import BasicLayout from '@/layouts/BasicLayout'
+import RouteView from '@/layouts/RouteView'
 
-Vue.use(Router)
+Vue.use(VueRouter)
 
-// hack router push callback（避免某些版本的vue-router跳转到相同页面报错）
-const originalPush = Router.prototype.push
-Router.prototype.push = function push (location, onResolve, onReject) {
+// hack router push callback（避免vue-router跳转到相同页面报错）
+const originalPush = VueRouter.prototype.push
+VueRouter.prototype.push = function push (location, onResolve, onReject) {
   if (onResolve || onReject) {
     return originalPush.call(this, location, onResolve, onReject)
   }
   return originalPush.call(this, location).catch(err => err)
 }
 
-const routes = [
-  {
-    path: '/',
-    component: BasicLayout,
-    redirect: '/home',
-    children: [
-      {
-        path: 'home',
-        component: () => import('../views/Home')
-      }
-    ]
-  },
+// 通用路由表
+export const constantRouterMap = [
   {
     path: '/login',
     component: () => import('@/views/Login')
@@ -33,6 +24,44 @@ const routes = [
   {
     path: '/404',
     component: () => import('@/views/404')
+  }
+]
+
+// 动态路由表
+export const asyncRouterMap = [
+  {
+    path: '/',
+    component: BasicLayout,
+    redirect: '/home',
+    children: [
+      {
+        path: '/home',
+        component: () => import('@/views/Home'),
+        meta: { title: '首页', icon: 'home' }
+      },
+      {
+        path: '/user',
+        component: () => import('@/views/User'),
+        meta: { title: '用户管理', icon: 'user', roles: ['operator'] }
+      },
+      {
+        path: '/system',
+        meta: { title: '系统管理', icon: 'setting', roles: ['admin'] },
+        component: RouteView,
+        children: [
+          {
+            path: '/system/role',
+            component: () => import('@/views/system/SystemRole'),
+            meta: { title: '角色管理' }
+          },
+          {
+            path: '/system/menu',
+            component: () => import('@/views/system/SystemMenu'),
+            meta: { title: '菜单管理' }
+          }
+        ]
+      }
+    ]
   },
   {
     path: '/*',
@@ -40,42 +69,72 @@ const routes = [
   }
 ]
 
-const router = new Router({
+const router = new VueRouter({
   mode: 'history',
-  routes
+  base: process.env.BASE_URL,
+  routes: constantRouterMap
 })
+
+// 免登录白名单
+const whiteList = ['/login', '/404']
+
+// router.beforeEach((to, from, next) => {
+//   const token = localStorage.getItem('token')
+//   if (token) {
+//     next()
+//   } else {
+//     if (whiteList.includes(to.path)) {
+//       next()
+//     } else {
+//       next('/login')
+//     }
+//   }
+// })
 
 // 路由守卫，登录拦截
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   if (token) {
-    if (store.state.user.loginInfo) {
-      // vuex 可以获取到登录状态，说明 token 有效
-      next()
+    if (to.path === '/login') {
+      next('/')
     } else {
-      // 刷新页面，或者关闭页面后重新打开，vuex 失效，则重新获取
-      store.dispatch('GetLoginInfo')
-        .then(res => {
-        // 可以获取到登录状态，说明 token 仍然有效
-          next()
-        })
-        .catch(error => {
-        // 获取失败，重新登录
-          console.log(error)
-          store.dispatch('Logout').then(() => {
-            next('/login')
+      if (store.state.user.roles.length) {
+        // vuex 可以获取到用户信息，说明 token 有效
+        next()
+      } else {
+        // 刷新页面，或者关闭页面后重新打开，vuex 失效，则重新获取
+        store.dispatch('GetInfo')
+          .then(() => {
+            // 动态分发路由
+            const roles = store.state.user.roles
+            store.dispatch('GenerateRoutes', roles).then(() => {
+              router.addRoutes(store.state.permission.addRouters)
+              // hack 方法，确保 addRoutes 已完成
+              next({ ...to, replace: true })
+            })
           })
-        })
+          .catch(() => {
+            // 获取失败，重新登录
+            Notification.error({
+              message: '错误',
+              description: '请求用户信息失败，请重试'
+            })
+            store.dispatch('Logout').then(() => {
+              next('/login')
+            })
+          })
+      }
     }
   } else {
-    // 没有 token（未登录/已经退出登录），跳转到登录页
-    if (to.path === '/login') {
+    // 无 token
+    if (whiteList.includes(to.path)) {
+      // 免登录白名单，不需要登录
       next()
     } else {
+      // 跳转到登录页
       next('/login')
     }
   }
-  next()
 })
 
 export default router

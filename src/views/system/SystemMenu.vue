@@ -1,7 +1,5 @@
 <template>
-  <div>
-    <router-view />
-  </div>
+  <div>菜单管理</div>
 </template>
 
 <script>
@@ -14,4 +12,6 @@ export default {
 }
 </script>
 
-<style></style>
+<style scoped>
+
+</style>

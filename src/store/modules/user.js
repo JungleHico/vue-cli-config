@@ -1,48 +1,47 @@
-import { login, getLoginInfo } from '@/api/user'
+import { login, getInfo } from '@/api/login'
 
 const user = {
   state: {
-    loginInfo: null
+    info: null, // 用户基本信息，用户判断是否登录
+    roles: [] // 用户权限
   },
   mutations: {
-    SET_LOGIN_INFO (state, loginInfo) {
-      state.loginInfo = loginInfo
+    SET_INFO (state, info) {
+      state.info = info
+    },
+    SET_ROLES (state, roles) {
+      state.roles = roles
     }
   },
   actions: {
     // 封装登录接口
-    async Login ({ commit }, account) {
+    async Login ({ commit }, loginInfo) {
       try {
-        // TODO 登陆接口
-        const res = await login(account)
-        if (res.data.data && res.data.data.token) {
-          const token = res.data.data.token
-          // 缓存token
-          localStorage.setItem('token', `Bearer ${token}`)
-        }
+        const res = await login(loginInfo)
+        const token = res.data.token
+        // 缓存 token
+        localStorage.setItem('token', `Bearer ${token}`)
       } catch (error) {
         return Promise.reject(error)
       }
     },
-    // 获取用户基本信息（判断token是否过期）
-    async GetLoginInfo ({ commit }) {
+    // 获取用户基本信息，用于判断登录是否过期
+    async GetInfo ({ commit }) {
       try {
-        const res = await getLoginInfo()
-        console.log(res)
-        const loginInfo = res.data.data
-        if (loginInfo) {
-          commit('SET_LOGIN_INFO', loginInfo)
-        }
-        return res
+        const res = await getInfo()
+        const info = res.data
+        commit('SET_INFO', info)
+        commit('SET_ROLES', info.roles)
       } catch (error) {
         return Promise.reject(error)
       }
     },
     // 退出登录
     async Logout ({ commit }) {
-      // TODO 退出登录接口
+      // TODO 退出登录接口（如果需要）
+      // 移除 token，清空个人信息
       localStorage.removeItem('token')
-      commit('SET_LOGIN_INFO', null)
+      commit('SET_INFO', null)
     }
   }
 }

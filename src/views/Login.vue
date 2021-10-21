@@ -12,8 +12,8 @@
       <a-form-item>
         <a-input
           size="large"
-          placeholder="账号 admin"
-          v-decorator="['account', { rules: [{ required: true, message: '请输入账号' }] }]" />
+          placeholder="用户名 admin"
+          v-decorator="['username', { rules: [{ required: true, message: '请输入用户名' }] }]" />
       </a-form-item>
       <a-form-item>
         <a-input-password
@@ -65,19 +65,19 @@ export default {
 
       try {
         await this.Login({
-          account: values.account,
+          username: values.username,
+          // TODO md5 加密
           password: md5(values.password)
         })
         // 登录成功，重定向到首页
         this.$router.push('/')
       } catch (error) {
-        const message = error.message
+        // 登录失败
+        localStorage.removeItem('token')
+        const message = error.response?.data?.message
+        this.errorMsg = message || '登录失败'
         this.showErrorMsg = true
-        this.errorMsg = message
-        this.$notification.error({
-          message: '错误',
-          description: message
-        })
+        return Promise.reject(error)
       } finally {
         this.loading = false
       }
@@ -86,7 +86,7 @@ export default {
 }
 </script>
 
-<style lang="less" scoped>
+<style scoped lang="less">
 .login {
   display: flex;
   flex-direction: column;

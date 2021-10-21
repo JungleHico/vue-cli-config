@@ -1,15 +1,16 @@
 import axios from 'axios'
-import devAPI from './baseURL'
+import { Notification } from 'ant-design-vue'
+import store from '@/store'
 
 const http = axios.create({
-  baseURL: devAPI,
-  timeout: 6000
+  baseURL: process.env.VUE_APP_API_BASE_URL, // api base_url
+  timeout: 6000 // 请求超时时间
 })
 
 // 请求拦截
 http.interceptors.request.use(
   config => {
-    // 请求头携带Token
+    // 请求头携带 token
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = token
@@ -21,37 +22,31 @@ http.interceptors.request.use(
 
 // 响应拦截
 http.interceptors.response.use(
-  response => Promise.resolve(response),
+  response => response.data,
   error => {
-    // 请求错误统一处理
     if (error.response) {
-      switch (error.response.status) {
-        // TODO Notification 组件提示
-        case 401:
-          console.log('登录过期，请重新登录')
-          // 重新加载当前页（结合路由守卫，可以重定向到登录页）
-          window.location.reload()
-          break
-        case 403:
-          console.log('拒绝访问')
-          break
-        case 404:
-          console.log('请求不存在')
-          break
-        case 500:
-          console.log('服务器错误')
-          break
-        default:
-          console.log(error.response.data.message)
-          break
+      const { status, data } = error.response
+      Notification.error({
+        message: status,
+        description: data.message
+      })
+      if (status === 401) {
+        // token 过期，打开登录页（路由守卫）
+        store.dispatch('Logout').then(() => {
+          setTimeout(() => {
+            window.location.reload()
+          }, 1000)
+        })
       }
     }
     return Promise.reject(error)
   }
 )
 
+// export default http
+
 // 封装 get 请求
-export function get (url, params = {}, config = {}) {
+export const get = (url, params = {}, config = {}) => {
   return http({
     url,
     method: 'GET',
@@ -61,7 +56,7 @@ export function get (url, params = {}, config = {}) {
 }
 
 // 封装 post 请求
-export function post (url, data = {}, config = {}) {
+export const post = (url, data = {}, config = {}) => {
   return http({
     url,
     method: 'POST',

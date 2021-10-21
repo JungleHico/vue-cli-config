@@ -9,11 +9,6 @@
 
 <script>
 export default {
-  data () {
-    return {
-
-    }
-  },
   methods: {
     onBackHome () {
       this.$router.push('/')
@@ -31,7 +26,7 @@ export default {
 .img {
   width: 300px;
   height: auto;
-  margin-top: 24px;
+  margin-top: 32px;
 }
 .status {
   margin-top: 32px;

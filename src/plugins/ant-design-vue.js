@@ -2,15 +2,24 @@
 import Vue from 'vue'
 import {
   Alert,
+  BackTop,
   Button,
+  Dropdown,
   Form,
+  Icon,
   Input,
-  Notification
+  Layout,
+  Menu,
+  Tabs
 } from 'ant-design-vue'
 
 Vue.use(Alert)
+Vue.use(BackTop)
 Vue.use(Button)
+Vue.use(Dropdown)
 Vue.use(Form)
+Vue.use(Icon)
 Vue.use(Input)
-
-Vue.prototype.$notification = Notification
+Vue.use(Layout)
+Vue.use(Menu)
+Vue.use(Tabs)
