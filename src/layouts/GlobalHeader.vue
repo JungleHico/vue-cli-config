@@ -1,13 +1,18 @@
 <template>
   <a-layout-header class="header">
     <a-icon class="trigger" :type="collapsed ? 'menu-unfold' : 'menu-fold'" @click="onToggle" />
+    <user-menu></user-menu>
   </a-layout-header>
 </template>
 
 <script>
 import { mapState, mapActions } from 'vuex'
+import UserMenu from '@/components/UserMenu'
 
 export default {
+  components: {
+    UserMenu
+  },
   data () {
     return {
 
@@ -29,6 +34,9 @@ export default {
 
 <style scoped lang="less">
 .header {
+  display: flex;
+  justify-content: space-between;
+  align-content: center;
   background-color: #fff;
   .trigger {
     height: 64px;
