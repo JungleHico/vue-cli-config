@@ -4,6 +4,4 @@ if (process.env.NODE_ENV !== 'production') {
   require('./services/login')
 
   Mock.setup(500)
-
-  console.log('[mock] mounted')
 }

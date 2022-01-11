@@ -36,11 +36,13 @@ export const asyncRouterMap = [
     children: [
       {
         path: '/home',
+        name: 'Home',
         component: () => import('@/views/Home'),
         meta: { title: '首页', icon: 'home' }
       },
       {
         path: '/user',
+        name: 'User',
         component: () => import('@/views/User'),
         meta: { title: '用户管理', icon: 'user', roles: ['operator'] }
       },
@@ -51,11 +53,13 @@ export const asyncRouterMap = [
         children: [
           {
             path: '/system/role',
+            name: 'SystemRole',
             component: () => import('@/views/system/SystemRole'),
             meta: { title: '角色管理' }
           },
           {
             path: '/system/menu',
+            name: 'SystemMenu',
             component: () => import('@/views/system/SystemMenu'),
             meta: { title: '菜单管理' }
           }

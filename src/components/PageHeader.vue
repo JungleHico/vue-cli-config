@@ -1,19 +1,21 @@
 <template>
   <div class="page-header">
     <a-tabs
+      v-model="activePath"
       class="tabs"
-      v-model="activeKey"
       type="editable-card"
       hide-add
       :tab-bar-style="{ margin: '2px 0 0', paddingTop: '4px' }"
+      @change="onChangeTab"
       @edit="onEdit">
       <a-tab-pane
-        v-for="item in pages"
+        v-for="item in visitedRoutes"
         :key="item.fullPath"
         :tab="item.meta.title || item.fullPath"
-        :closable="pages.length > 1">
+        :closable="visitedRoutes.length > 1">
       </a-tab-pane>
     </a-tabs>
+
     <a-dropdown class="dropdown">
       <a-icon type="more" />
       <a-menu slot="overlay" @click="onClickMenu">
@@ -32,52 +34,51 @@
 </template>
 
 <script>
+import { mapState, mapActions } from 'vuex'
+
 export default {
   data () {
     return {
-      fullPathList: [],
-      pages: [],
-      activeKey: ''
+      activePath: '' // 当前路径
     }
+  },
+  computed: {
+    ...mapState({
+      visitedRoutes: state => state.pageHeader.visitedRoutes
+    })
   },
   watch: {
     $route ($route) {
-      const { fullPath } = $route
-      this.activeKey = fullPath
-      if (!this.fullPathList.includes(fullPath)) {
-        this.fullPathList.push(fullPath)
-        this.pages.push($route)
-      }
-    },
-    activeKey (activeKey) {
-      if (activeKey !== this.$route.fullPath) {
-        this.$router.push(activeKey)
-      }
+      this.AddVisitedRoutes($route)
+      this.activePath = $route.fullPath
     }
   },
   created () {
     this.init()
   },
   methods: {
+    ...mapActions(['AddVisitedRoutes', 'DelVisitedRoutesByPath', 'SetVisitedRoutes']),
     init () {
-      this.pages.push(this.$route)
-      this.fullPathList.push(this.$route.fullPath)
-      this.selectedLastPath()
+      this.AddVisitedRoutes(this.$route)
+      this.activePath = this.$route.fullPath
     },
-    selectedLastPath () {
-      this.activeKey = this.fullPathList[this.fullPathList.length - 1]
+
+    // 切换标签
+    onChangeTab (activePath) {
+      this.$router.push(activePath)
     },
-    onEdit (targetKey, action) {
-      // 关闭标签
+    // 关闭标签
+    onEdit (fullPath, action) {
       if (action === 'remove') {
-        this.pages = this.pages.filter(page => page.fullPath !== targetKey)
-        this.fullPathList = this.fullPathList.filter(path => path !== targetKey)
+        this.DelVisitedRoutesByPath(fullPath)
         this.selectedLastPath()
       }
     },
-    onCloseTag (e, index) {
-      e.preventDefault()
-      this.tags.splice(index, 1)
+    selectedLastPath () {
+      const activePath = this.visitedRoutes[this.visitedRoutes.length - 1].fullPath
+      if (activePath !== this.activePath) {
+        this.$router.push(activePath)
+      }
     },
     onClickMenu ({ key }) {
       if (key === '1') {
@@ -91,20 +92,15 @@ export default {
       }
     },
     closeOthers () {
-      this.pages = this.pages.filter(page => page.fullPath === this.activeKey)
-      this.fullPathList = this.fullPathList.filter(path => path === this.activeKey)
+      this.SetVisitedRoutes(this.visitedRoutes.filter(route => route.fullPath === this.activePath))
     },
     closeToTheLeft () {
-      const pageIndex = this.pages.findIndex(page => page.fullPath === this.activeKey)
-      const pathIndex = this.fullPathList.findIndex(path => path === this.activeKey)
-      this.pages.splice(0, pageIndex)
-      this.fullPathList.splice(0, pathIndex)
+      const index = this.visitedRoutes.findIndex(route => route.fullPath === this.activePath)
+      this.visitedRoutes.splice(0, index)
     },
     closeToTheRight () {
-      const pageIndex = this.pages.findIndex(page => page.fullPath === this.activeKey)
-      const pathIndex = this.fullPathList.findIndex(path => path === this.activeKey)
-      this.pages.splice(pageIndex + 1, this.pages.length - 1 - pageIndex)
-      this.fullPathList.splice(pathIndex + 1, this.fullPathList.length - 1 - pathIndex)
+      const index = this.visitedRoutes.findIndex(route => route.fullPath === this.activePath)
+      this.visitedRoutes.splice(index + 1, this.visitedRoutes.length - 1 - index)
     }
   }
 }

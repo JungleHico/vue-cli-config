@@ -6,7 +6,11 @@
       <a-layout-content class="content-wrapper">
         <page-header></page-header>
         <div class="content">
-          <router-view />
+          <transition name="slide-in">
+            <keep-alive :include="cachedViews">
+              <router-view />
+            </keep-alive>
+          </transition>
         </div>
       </a-layout-content>
     </a-layout>
@@ -16,7 +20,7 @@
 </template>
 
 <script>
-import { mapState } from 'vuex'
+import { mapState, mapGetters } from 'vuex'
 import Sidebar from './Sidebar'
 import GlobalHeader from './GlobalHeader'
 import PageHeader from '@/components/PageHeader'
@@ -36,6 +40,7 @@ export default {
     ...mapState({
       collapsed: state => state.app.collapsed
     }),
+    ...mapGetters(['cachedViews']),
     // 主体内容宽度随侧边栏收起/展开变化
     layoutStyle () {
       return this.collapsed ? { marginLeft: '80px', width: 'calc(100% - 80px)' } : { marginLeft: '256px', width: 'calc(100% - 256px)' }
@@ -57,5 +62,18 @@ export default {
     padding: 16px;
     background-color: #fff;
   }
+}
+
+// 页面切换动画
+.slide-in-enter-active {
+  transition: all .5s;
+}
+.slide-in-enter {
+  opacity: 0;
+  transform: translateX(-30px);
+}
+.slide-in-leave-to {
+  opacity: 0;
+  transform: translateX(30px);
 }
 </style>

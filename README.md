@@ -10,13 +10,14 @@
 - [封装 axios 和 api](#axios)
 - [登录拦截](#login)
 - [权限控制](#authorization)
+- [keep-alive 缓存页面路由](#keep_alive)
 - [Git 规范](#git)
 - [文档规范](#document)
 - [性能优化](#performance)
 
 ## <span id="install">Vue CLI4 安装</span>
 
-参考 [Vue CLI 官方文档](https://cli.vuejs.org/zh/guide/)
+参考 [Vue CLI 官方文档](https://cli.vuejs.org/zh/guide/installation.html)
 
 初始化项目配置参考：
 
@@ -413,6 +414,19 @@ import { get, post } from './utils/http'
 export const login = data => post('/user/login', data)
 
 export const getInfo = () => get('/user/info')
+```
+
+调用接口：
+
+```js
+import { login } from '@/api/login'
+
+login({
+  account: 'admin',
+  password: '123456'
+}).then(res => {
+  // ...
+})
 ```
 
 > 注意：一般情况下，如果接口需要传递参数，推荐像上面 `login` 接口一样原封不动传 `data` 参数，这样调接口的时候，参数就和 api 文档保持一致，只需要查看 api 文档即可，否则调用接口既需要看 api 文档，还要修改接口的封装，参考下面的说明。
@@ -969,6 +983,54 @@ menus = (menus && menus.children) || []
 
 [▲ 回顶部](#top)
 
+## <span id="keep_alive">keep-alive 缓存页面状态</span>
+
+如果不做任何处理，单页跳转到新的页面，之前的页面会被销毁，再返回之前的页面就需要重新渲染，接口也会重新请求。一般情况下，我们更希望能缓存页面状态，这就需要用到 Vue 的内置组件 `<keep-alive>`。
+
+### meta.keepAlive
+
+```html
+<keep-alive>
+  <router-view v-if="$route.meta && $route.meta.keepAlive" />
+</keep-alive>
+<router-view v-if="!route.meta || !route.meta.keepAlive" />
+```
+
+这里定义了两个 `<router-view>`，其中一个由 `<kee-alive>` 包裹，通过修改路由表来控制路由是否缓存，如果需要页面缓存，则在 `src/route/index.js` 中，为对应路由添加 `meta.keepAlive`，例如：
+
+```js
+const routes = [
+  {
+    path: '/home',
+    name: 'Home',
+    component: () => import('@/views/Home'),
+    meta: { title: '首页', icon: 'home', keepAlive: true }
+  }
+]
+// ...
+```
+
+或者也可以默认所有页面都缓存，为不需要缓存的页面添加 `meta.noKeepAlive`，然后对 `<router-view>` 判断该值。
+
+### include 和 exclude
+
+`<keep-alive>` 还提供了 `include` 和 `exclude` 这两个属性来有条件地缓存对应的路由，例如：
+
+```html
+<!-- 逗号分隔字符串 -->
+<keep-alive include="Home,User">
+  <router-view />
+</keep-alive>
+
+<!-- 数组 -->
+<keep-alive :include="['Home', 'User']">
+  <router-view />
+</keep-alive>
+```
+
+`include` 和 `exclude` 首先检查组件自身的 `name` 选项，如果 `name` 选项不可用，则匹配它的局部注册名称 (父组件 `components 选项的键值`)。匿名组件不能被匹配。上面的例子，如果组件的 `name` 值为 `'Home'` 或者 `'User'`，则会被缓存，否则就不会缓存。
+
+[▲ 回顶部](#top)
 
 ## <span id="git">Git 规范</span>
 
@@ -996,6 +1058,7 @@ git commit -m "feat: 课程模块新增搜索功能"
 - refactor：重构（即不是新增功能，也不是修改bug的代码变动）
 - test：增加测试
 - chore：构建过程或辅助工具的变动
+- perf：优化/性能提升
   
 对于团队项目或者大型项目，需要对项目进行分支管理：
 
@@ -1384,7 +1447,7 @@ clearInterval(timer)
 ```js
 <script>
 export default {
-  mounted () {
+  created () {
     const body = document.body
     body.addEventListener('scroll', this.clickEvent, false)
     this.$once('hook:beforeDestroy', () => {
@@ -1425,7 +1488,7 @@ npm install --save lodash
 import throttle from 'lodash/throttle'
 
 export default {
-  mounted () {
+  created () {
     const body = document.body
     body.addEventListener('scroll', this.clickEvent, false)
     this.$once('hook:beforeDestroy', () => {
@@ -1444,7 +1507,7 @@ export default {
 
 #### 合理使用 LocalStorage 和 SessionStorage
 
-对于某些用户数据，例如网站偏好设置，历史记录等，需要用户获取到之前的数据，又没有必要请求服务器，则可以使用本地缓存。
+对于某些用户数据，例如网站偏好设置，历史记录等，需要用户获取到之前的数据，又没有必要保存在服务器中，则可以使用本地缓存。
 
 ### 感知性能优化
 
