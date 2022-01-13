@@ -8,7 +8,7 @@
         <div class="content">
           <transition name="slide-in">
             <keep-alive :include="cachedViews">
-              <router-view />
+              <router-view :key="$route.fullPath" />
             </keep-alive>
           </transition>
         </div>
